@@ -1,7 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap");
 @import "@radix-ui/themes/styles.css";
-@import "../src/contents/font.css";
 @import "../src/contents/plasmo-overlay.css";
+@import "../src/contents/font.css";
 
 @tailwind base;
 @tailwind components;
