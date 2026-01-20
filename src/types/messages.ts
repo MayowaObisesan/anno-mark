@@ -131,6 +131,14 @@ export interface OpenEditorMessage {
   }
 }
 
+export interface OverlayEditorShownMessage {
+  type: 'OVERLAY_EDITOR_SHOWN'
+}
+
+export interface OverlayEditorHiddenMessage {
+  type: 'OVERLAY_EDITOR_HIDDEN'
+}
+
 export type ExtensionMessage =
   | GetDocumentMetricsMessage
   | DocumentMetricsResponse
@@ -148,4 +156,6 @@ export type ExtensionMessage =
   | ShowOverlayEditorMessage
   | HideOverlayEditorMessage
   | OverlayEditorClosedMessage
+  | OverlayEditorShownMessage
+  | OverlayEditorHiddenMessage
   | SaveAnnotationMessage

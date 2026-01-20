@@ -31,3 +31,15 @@ This should create a production bundle for your extension, ready to be zipped an
 ## Submit to the webstores
 
 The easiest way to deploy your Plasmo extension is to use the built-in [bpp](https://bpp.browser.market) GitHub action. Prior to using this action however, make sure to build your extension and upload the first version to the store to establish the basic credentials. Then, simply follow [this setup instruction](https://docs.plasmo.com/framework/workflows/submit) and you should be on your way for automated submission!
+
+
+## PLASMO ARCHITECTURE IN ANNO-MARK
+```mermaid
+graph TD
+    A[Popup Component] -->|@plasmohq/messaging| B[Background Script]
+    C[Floating Button] -->|@plasmohq/messaging| B
+    B -->|Chrome API| D[Content Script]
+    D -->|DOM Manipulation| E[Web Page]
+    D -->|Canvas Rendering| F[Overlay Editor]
+    B -->|@plasmohq/storage| G[Storage]
+```
