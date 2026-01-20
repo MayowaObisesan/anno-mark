@@ -104,15 +104,13 @@ async function captureSliceWithSnapDom(options: {
   height: number
 }): Promise<string> {
   try {
-    const dataUrl = await snapdom(document.body, {
-      x: options.x,
-      y: options.y,
+    const result = await snapdom(document.body, {
       width: options.width,
       height: options.height,
       scale: window.devicePixelRatio || 1
     })
 
-    return dataUrl
+    return result.url
   } catch (error) {
     console.error('SnapDom capture failed:', error)
     throw error
