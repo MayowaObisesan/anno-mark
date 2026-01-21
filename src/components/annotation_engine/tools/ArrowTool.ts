@@ -38,18 +38,20 @@ export class ArrowTool implements Tool {
     ctx.lineTo(a.end.x, a.end.y)
     ctx.stroke()
 
+    // Proportional arrow head
+    const headLength = Math.max(10, (a.strokeWidth || 2) * 4)
     const angle = Math.atan2(a.end.y - a.start.y, a.end.x - a.start.x)
 
-    const size = 10
+    // const size = 10 // No longer needed, now using headLength for dynamic scaling.
     ctx.beginPath()
     ctx.moveTo(a.end.x, a.end.y)
     ctx.lineTo(
-      a.end.x - size * Math.cos(angle - Math.PI / 6),
-      a.end.y - size * Math.sin(angle - Math.PI / 6)
+      a.end.x - headLength * Math.cos(angle - Math.PI / 6),
+      a.end.y - headLength * Math.sin(angle - Math.PI / 6)
     )
     ctx.lineTo(
-      a.end.x - size * Math.cos(angle + Math.PI / 6),
-      a.end.y - size * Math.sin(angle + Math.PI / 6)
+      a.end.x - headLength * Math.cos(angle + Math.PI / 6),
+      a.end.y - headLength * Math.sin(angle + Math.PI / 6)
     )
     ctx.closePath()
     ctx.fillStyle = a.stroke
