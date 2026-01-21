@@ -11,6 +11,7 @@ import { LucideRedo, LucideSave, LucideUndo, LucideX } from "lucide-react"
 
 import { AnnotationEngine } from "~components/annotation_engine/AnnotationEngine"
 import type { ToolType } from "~components/annotation_engine/engine/types"
+import { Toolbar } from "~components/annotation_engine/toolbar/toolbar"
 
 interface AnnotationEngineProps {
   imageData: string
@@ -242,42 +243,13 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
 
         <Flex align={"center"} justify={"between"} width={"100%"}>
           <Flex align={"center"} gap={"4"}>
-            {/* Color Picker */}
-            <Flex align={"center"} gap={"2"}>
-              {colors.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => setSelectedColor(color)}
-                  style={{
-                    width: 28,
-                    height: 28,
-                    backgroundColor: color,
-                    border:
-                      selectedColor === color
-                        ? "2px solid var(--accent-9)"
-                        : "1px solid var(--gray-4)",
-                    borderRadius: 100,
-                    cursor: "pointer"
-                  }}
-                />
-              ))}
-            </Flex>
-
-            <Separator orientation="vertical" size="1" />
-
-            {/* Brush Size */}
-            <Flex align={"center"} gap={"2"}>
-              <Slider
-                className={"w-32"}
-                defaultValue={[brushSize]}
-                min={1}
-                max={10}
-                step={1}
-                size={"3"}
-                onValueChange={(value) => setBrushSize(value[0])}
+            {/* Dynamic Tool Properties Toolbar */}
+            {engineRef.current && (
+              <Toolbar
+                engine={engineRef.current}
+                activeTool={selectedTool}
               />
-              <Text size="2">{brushSize}px</Text>
-            </Flex>
+            )}
           </Flex>
 
           <Flex align={"center"} gap={"4"}>
