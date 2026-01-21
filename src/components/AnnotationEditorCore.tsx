@@ -737,7 +737,7 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
 
             {/* Text Tool Options - Show only when text is selected */}
             {selectedTool === "text" && (
-              <>
+              <Flex position={'absolute'} left={'2'}>
                 <Separator orientation="vertical" size="1" />
                 <Flex align={"center"} gap={"2"}>
                   <Flex align={"center"} gap={"2"}>
@@ -787,7 +787,7 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
                     </SegmentedControl.Root>
                   </Flex>
                 </Flex>
-              </>
+              </Flex>
             )}
 
             {/* Undo/Redo */}
