@@ -1,8 +1,6 @@
 import { Box, Button, Card, Flex, SegmentedControl, Separator, Slider, Text, Theme } from "@radix-ui/themes";
-import { LucideRedo, LucideUndo } from "lucide-react";
+import { LucideRedo, LucideSave, LucideUndo, LucideX } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-
-
 
 import type {
   AnnotationAction,
@@ -445,7 +443,7 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
 
             {/* Export */}
             <Button size="1" onClick={exportImage}>
-              💾 {exportButtonText}
+              <LucideSave size={14} strokeWidth={2} /> {exportButtonText}
             </Button>
 
             {/* Close Button */}
@@ -453,7 +451,7 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
               <>
                 <Separator orientation="vertical" size="1" />
                 <Button size="1" variant="soft" onClick={onClose}>
-                  × Close
+                  <LucideX size={14} strokeWidth={2} /> Close
                 </Button>
               </>
             )}
