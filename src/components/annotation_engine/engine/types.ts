@@ -8,9 +8,12 @@ export type ToolType = "arrow" | "rectangle" | "ellipse" | "freehand" | "text"
 export type AnnotationBase = {
   id: string
   type: ToolType
-  stroke: string
-  strokeWidth: number
+  stroke?: string
+  strokeWidth?: number
   selected?: boolean
+  fill?: string
+  fontSize?: number
+  fontFamily?: string
 }
 
 export type ArrowAnnotation = AnnotationBase & {

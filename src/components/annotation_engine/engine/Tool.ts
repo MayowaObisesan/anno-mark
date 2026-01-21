@@ -14,9 +14,11 @@ export type ToolConfigSchema = {
 export interface Tool {
   type: string
 
-  onPointerDown(point: Point): void
-  onPointerMove(point: Point): void
-  onPointerUp(point: Point): Annotation | null
+  onPointerDown(point: Point): any
+  onPointerMove(point: Point, drawingState?: any): void
+  onPointerUp(point: Point, drawingState?: any): Annotation | null
+
+  getPreview?(drawingState: any): Annotation | null
 
   draw(ctx: CanvasRenderingContext2D, annotation: Annotation): void
 
