@@ -1,4 +1,4 @@
-;
+import { LucideX } from "lucide-react"
 
 // import cssText from "data-text:~/contents/plasmo-overlay.css";
 import {
@@ -13,95 +13,9 @@ import {
 import cssText from "data-text:~/globals.css"
 import type { PlasmoCSConfig } from "plasmo";
 import React, { useEffect, useState } from "react";
-
-
-
 import { sendToBackground } from "@plasmohq/messaging";
 
-
-
 import AnnotationEditorCore from "~components/AnnotationEditorCore";
-
-
-
-
-
-;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
@@ -235,14 +149,14 @@ const PlasmoOverlay = () => {
                   Anno-Mark Editor
                 </Heading>
                 <IconButton
-                  radius={'large'}
-                  size={'4'}
+                  radius={'full'}
+                  size={'3'}
                   variant={'soft'}
                   className="anno-mark-editor-clos"
                   onClick={() => setShowEditor(false)}
                   title="Close"
                 >
-                  ×
+                  <LucideX size={16} strokeWidth={4} />
                 </IconButton>
               </Flex>
 
