@@ -1,49 +1,60 @@
 import { normalizeRect } from "~components/annotation_engine/engine/utils"
-
-
-
 import type { Tool, ToolConfigSchemaType } from "../engine/Tool";
 import type { Point, RectAnnotation } from "../engine/types";
 
+interface RectangleDrawingState {
+  start: Point
+  end: Point
+}
 
 export class RectangleTool implements Tool {
   type = "rectangle"
-  private start?: Point
-  private end?: Point
 
-  onPointerDown(p: Point) {
-    this.start = p
-    this.end = p
+  onPointerDown(p: Point): RectangleDrawingState {
+    return {
+      start: p,
+      end: p
+    }
   }
 
-  onPointerMove(p: Point) {
-    this.end = p
+  onPointerMove(p: Point, drawingState: RectangleDrawingState) {
+    if (drawingState) {
+      drawingState.end = p
+    }
   }
 
-  onPointerUp(): RectAnnotation | null {
-    if (!this.start || !this.end) return null
+  onPointerUp(p: Point, drawingState?: RectangleDrawingState): RectAnnotation | null {
+    if (!drawingState) return null
 
     return {
       id: crypto.randomUUID(),
       type: "rectangle",
-      start: this.start,
-      end: this.end,
-      stroke: "#00ff00",
-      strokeWidth: 2,
-      fill: "rgba(0,255,0,0.1)"
+      start: drawingState.start,
+      end: drawingState.end
+    }
+  }
+
+  getPreview(drawingState: RectangleDrawingState): RectAnnotation | null {
+    if (!drawingState) return null
+
+    return {
+      id: "preview",
+      type: "rectangle",
+      start: drawingState.start,
+      end: drawingState.end
     }
   }
 
   draw(ctx: CanvasRenderingContext2D, a: RectAnnotation) {
     const r = normalizeRect(a.start, a.end)
 
-    if (a.fill) {
+    if (a.fill && a.fill !== "transparent") {
       ctx.fillStyle = a.fill
       ctx.fillRect(r.x, r.y, r.width, r.height)
     }
 
-    ctx.strokeStyle = a.stroke
-    ctx.lineWidth = a.strokeWidth
+    ctx.strokeStyle = a.stroke || "#00ff00"
+    ctx.lineWidth = a.strokeWidth || 2
     ctx.strokeRect(r.x, r.y, r.width, r.height)
   }
 

@@ -17,6 +17,11 @@ export class AnnotationEngine {
   private activeTool: ToolType = "arrow"
   private backgroundImage: HTMLImageElement | null = null
 
+  // Preview state for real-time drawing
+  private isDrawing: boolean = false
+  private currentPreview: Annotation | null = null
+  private drawingState: any = null
+
   private readonly tools: Record<string, any>
 
   private selection: SelectionState = {
@@ -38,6 +43,7 @@ export class AnnotationEngine {
   // Event callbacks
   private onAnnotationAdded?: () => void
   private onAnnotationModified?: () => void
+  private onPreviewUpdate?: () => void
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
@@ -81,9 +87,14 @@ export class AnnotationEngine {
     this.backgroundImage = image
   }
 
-  setEventCallbacks(callbacks: { onAnnotationAdded?: () => void; onAnnotationModified?: () => void }) {
+  setEventCallbacks(callbacks: { 
+    onAnnotationAdded?: () => void; 
+    onAnnotationModified?: () => void;
+    onPreviewUpdate?: () => void;
+  }) {
     this.onAnnotationAdded = callbacks.onAnnotationAdded
     this.onAnnotationModified = callbacks.onAnnotationModified
+    this.onPreviewUpdate = callbacks.onPreviewUpdate
   }
 
   private bindEvents() {
@@ -103,13 +114,51 @@ export class AnnotationEngine {
     }
   }
 
-  /*private onDown = (e: PointerEvent) => {
-    this.tools[this.activeTool].onPointerDown(this.getPoint(e))
-  }*/
+  private startDrawing(p: Point) {
+    this.isDrawing = true
+    this.drawingState = this.tools[this.activeTool].onPointerDown(p)
+    
+    // Create initial preview with current tool properties
+    this.updatePreview()
+  }
+
+  private updatePreview() {
+    if (!this.isDrawing || !this.drawingState) return
+
+    // Get preview annotation from tool
+    const previewAnnotation = this.tools[this.activeTool].getPreview?.(this.drawingState)
+    if (previewAnnotation) {
+      // Apply current tool properties to preview
+      this.currentPreview = {
+        ...previewAnnotation,
+        stroke: this.toolProperties.stroke,
+        strokeWidth: this.toolProperties.strokeWidth,
+        fill: this.toolProperties.fill,
+        fontSize: this.toolProperties.fontSize,
+        fontFamily: this.toolProperties.fontFamily,
+      }
+    }
+
+    this.onPreviewUpdate?.()
+    this.redraw()
+  }
+
+  private finishDrawing(p: Point): Annotation | null {
+    if (!this.isDrawing) return null
+
+    this.isDrawing = false
+    const annotation = this.tools[this.activeTool].onPointerUp(p, this.drawingState)
+    
+    this.currentPreview = null
+    this.drawingState = null
+
+    return annotation
+  }
 
   private onDown = (e: PointerEvent) => {
     const p = this.getPoint(e)
 
+    // Check for selection first
     for (let i = this.annotations.length - 1; i >= 0; i--) {
       const a = this.annotations[i]
       if (this.tools[a.type].hitTest(a as any, p)) {
@@ -127,18 +176,15 @@ export class AnnotationEngine {
       }
     }
 
+    // Clear selection and start drawing
     this.selection = { annotation: null, handle: null, startPoint: null, original: null }
-    this.tools[this.activeTool].onPointerDown(p)
+    this.startDrawing(p)
   }
-/*
-  private onMove = (e: PointerEvent) => {
-    this.tools[this.activeTool].onPointerMove(this.getPoint(e))
-    this.redraw()
-  }*/
 
   private onMove = (e: PointerEvent) => {
     const p = this.getPoint(e)
 
+    // Handle selection/movement
     if (this.selection.annotation && this.selection.startPoint) {
       const dx = p.x - this.selection.startPoint.x
       const dy = p.y - this.selection.startPoint.y
@@ -156,45 +202,62 @@ export class AnnotationEngine {
       return
     }
 
+    // Handle preview during drawing
+    if (this.isDrawing) {
+      this.tools[this.activeTool].onPointerMove(p, this.drawingState)
+      this.updatePreview()
+      return
+    }
+
+    // Regular tool movement
     this.tools[this.activeTool].onPointerMove(p)
-    this.redraw()
   }
 
-
-  /*private onUp = (e: PointerEvent) => {
-    const annotation = this.tools[this.activeTool].onPointerUp(this.getPoint(e))
-    if (annotation) this.annotations.push(annotation)
-    this.redraw()
-  }*/
-
   private onUp = (e: PointerEvent) => {
+    const p = this.getPoint(e)
+
+    // Handle selection finish
     if (this.selection.annotation) {
       this.selection = { annotation: null, handle: null, startPoint: null, original: null }
       this.onAnnotationModified?.()
       return
     }
 
-    const a = this.tools[this.activeTool].onPointerUp(this.getPoint(e))
-    if (a) {
-      // Apply current tool properties to new annotation
-      const annotationWithProperties = {
-        ...a,
-        stroke: this.toolProperties.stroke,
-        strokeWidth: this.toolProperties.strokeWidth,
-        fill: this.toolProperties.fill,
-        fontSize: this.toolProperties.fontSize,
-        fontFamily: this.toolProperties.fontFamily,
+    // Handle drawing finish
+    if (this.isDrawing) {
+      const annotation = this.finishDrawing(p)
+      if (annotation) {
+        // Apply current tool properties to new annotation
+        const annotationWithProperties = {
+          ...annotation,
+          stroke: this.toolProperties.stroke,
+          strokeWidth: this.toolProperties.strokeWidth,
+          fill: this.toolProperties.fill,
+          fontSize: this.toolProperties.fontSize,
+          fontFamily: this.toolProperties.fontFamily,
+        }
+        this.annotations.push(annotationWithProperties)
+        this.onAnnotationAdded?.()
       }
-      this.annotations.push(annotationWithProperties)
-      this.onAnnotationAdded?.()
+    } else {
+      // Fallback for tools that don't use preview system yet
+      const a = this.tools[this.activeTool].onPointerUp(p)
+      if (a) {
+        const annotationWithProperties = {
+          ...a,
+          stroke: this.toolProperties.stroke,
+          strokeWidth: this.toolProperties.strokeWidth,
+          fill: this.toolProperties.fill,
+          fontSize: this.toolProperties.fontSize,
+          fontFamily: this.toolProperties.fontFamily,
+        }
+        this.annotations.push(annotationWithProperties)
+        this.onAnnotationAdded?.()
+      }
     }
+    
     this.redraw()
   }
-
-  /*private redraw() {
-    clearCanvas(this.ctx, this.canvas.width, this.canvas.height)
-    renderAnnotations(this.ctx, this.annotations, this.tools)
-  }*/
 
   redraw() {
     // Clear canvas
@@ -205,17 +268,13 @@ export class AnnotationEngine {
       this.ctx.drawImage(this.backgroundImage, 0, 0, this.canvas.width, this.canvas.height)
     }
 
-    // Apply current tool properties to annotations and render them
-    /*const annotationsWithProperties = this.annotations.map(annotation => ({
-      ...annotation,
-      stroke: annotation.stroke || this.toolProperties.stroke,
-      strokeWidth: annotation.strokeWidth || this.toolProperties.strokeWidth,
-      fill: annotation.fill || this.toolProperties.fill,
-      fontSize: annotation.fontSize || this.toolProperties.fontSize,
-      fontFamily: annotation.fontFamily || this.toolProperties.fontFamily
-    }))*/
-
+    // Draw completed annotations
     renderAnnotations(this.ctx, this.annotations, this.tools)
+
+    // Draw preview annotation if drawing
+    if (this.currentPreview) {
+      this.tools[this.currentPreview.type].draw(this.ctx, this.currentPreview)
+    }
 
     // Draw selection handles
     if (this.selection.annotation) {
@@ -224,7 +283,6 @@ export class AnnotationEngine {
       drawHandles(this.ctx, handles)
     }
   }
-
 
   exportPNG(): string {
     return this.canvas.toDataURL("image/png")
@@ -237,5 +295,14 @@ export class AnnotationEngine {
   load(json: string) {
     this.annotations = JSON.parse(json)
     this.redraw()
+  }
+
+  // Public methods for preview state
+  getIsDrawing(): boolean {
+    return this.isDrawing
+  }
+
+  getCurrentPreview(): Annotation | null {
+    return this.currentPreview
   }
 }

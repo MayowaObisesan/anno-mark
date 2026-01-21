@@ -5,40 +5,51 @@ import type {
 import type { FreehandAnnotation, Point } from "~components/annotation_engine/engine/types";
 import { distance } from "~components/annotation_engine/engine/utils";
 
-
-
-
+interface FreehandDrawingState {
+  points: Point[]
+}
 
 export class FreehandTool implements Tool {
   type = "freehand"
-  private points: Point[] = []
 
-  onPointerDown(p: Point) {
-    this.points = [p]
-  }
-
-  onPointerMove(p: Point) {
-    const last = this.points[this.points.length - 1]
-    if (!last || distance(last, p) > 2) {
-      this.points.push(p)
+  onPointerDown(p: Point): FreehandDrawingState {
+    return {
+      points: [p]
     }
   }
 
-  onPointerUp(): FreehandAnnotation | null {
-    if (this.points.length < 2) return null
+  onPointerMove(p: Point, drawingState: FreehandDrawingState) {
+    if (drawingState && drawingState.points.length > 0) {
+      const last = drawingState.points[drawingState.points.length - 1]
+      if (!last || distance(last, p) > 2) {
+        drawingState.points.push(p)
+      }
+    }
+  }
+
+  onPointerUp(p: Point, drawingState?: FreehandDrawingState): FreehandAnnotation | null {
+    if (!drawingState || drawingState.points.length < 2) return null
 
     return {
       id: crypto.randomUUID(),
       type: "freehand",
-      points: [...this.points],
-      stroke: "#000",
-      strokeWidth: 2
+      points: [...drawingState.points]
+    }
+  }
+
+  getPreview(drawingState: FreehandDrawingState): FreehandAnnotation | null {
+    if (!drawingState || drawingState.points.length < 2) return null
+
+    return {
+      id: "preview",
+      type: "freehand",
+      points: [...drawingState.points]
     }
   }
 
   draw(ctx: CanvasRenderingContext2D, a: FreehandAnnotation) {
-    ctx.strokeStyle = a.stroke
-    ctx.lineWidth = a.strokeWidth
+    ctx.strokeStyle = a.stroke || "#000"
+    ctx.lineWidth = a.strokeWidth || 2
     ctx.lineJoin = "round"
     ctx.lineCap = "round"
 

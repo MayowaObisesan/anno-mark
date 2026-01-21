@@ -65,10 +65,14 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
     const engine = new AnnotationEngine(canvas)
     engineRef.current = engine
 
-    // Set up event callbacks for automatic history saving
+    // Set up event callbacks for automatic history saving and preview updates
     engine.setEventCallbacks({
       onAnnotationAdded: saveToHistory,
-      onAnnotationModified: saveToHistory
+      onAnnotationModified: saveToHistory,
+      onPreviewUpdate: () => {
+        // Force a re-render when preview updates
+        // The canvas will be redrawn by the engine itself
+      }
     })
 
     // Load and set background image
@@ -157,7 +161,7 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
     const annotationData = engineRef.current.serialize()
     // This will need to be implemented to draw annotations on export canvas
 
-    // For now, use the engine's export method
+    // For now, use the engine's export method (which includes background and annotations)
     const dataUrl = engineRef.current.exportPNG()
 
     if (onExport) {

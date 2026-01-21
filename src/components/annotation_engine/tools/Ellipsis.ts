@@ -5,35 +5,46 @@ import type {
 import type { EllipseAnnotation, Point } from "~components/annotation_engine/engine/types";
 import { normalizeRect } from "~components/annotation_engine/engine/utils";
 
-
-
-
+interface EllipseDrawingState {
+  start: Point
+  end: Point
+}
 
 export class EllipseTool implements Tool {
   type = "ellipse"
-  private start?: Point
-  private end?: Point
 
-  onPointerDown(p: Point) {
-    this.start = p
-    this.end = p
+  onPointerDown(p: Point): EllipseDrawingState {
+    return {
+      start: p,
+      end: p
+    }
   }
 
-  onPointerMove(p: Point) {
-    this.end = p
+  onPointerMove(p: Point, drawingState: EllipseDrawingState) {
+    if (drawingState) {
+      drawingState.end = p
+    }
   }
 
-  onPointerUp(): EllipseAnnotation | null {
-    if (!this.start || !this.end) return null
+  onPointerUp(p: Point, drawingState?: EllipseDrawingState): EllipseAnnotation | null {
+    if (!drawingState) return null
 
     return {
       id: crypto.randomUUID(),
       type: "ellipse",
-      start: this.start,
-      end: this.end,
-      stroke: "#0000ff",
-      strokeWidth: 2,
-      fill: "rgba(0,0,255,0.1)"
+      start: drawingState.start,
+      end: drawingState.end
+    }
+  }
+
+  getPreview(drawingState: EllipseDrawingState): EllipseAnnotation | null {
+    if (!drawingState) return null
+
+    return {
+      id: "preview",
+      type: "ellipse",
+      start: drawingState.start,
+      end: drawingState.end
     }
   }
 
@@ -51,13 +62,13 @@ export class EllipseTool implements Tool {
       Math.PI * 2
     )
 
-    if (a.fill) {
+    if (a.fill && a.fill !== "transparent") {
       ctx.fillStyle = a.fill
       ctx.fill()
     }
 
-    ctx.strokeStyle = a.stroke
-    ctx.lineWidth = a.strokeWidth
+    ctx.strokeStyle = a.stroke || "#0000ff"
+    ctx.lineWidth = a.strokeWidth || 2
     ctx.stroke()
   }
 
