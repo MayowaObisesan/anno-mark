@@ -1,4 +1,4 @@
-import { Box, Button, Card, Flex, SegmentedControl, Separator, Slider, Text, Theme } from "@radix-ui/themes";
+import { Button, Flex, SegmentedControl, Separator, Slider, Text } from "@radix-ui/themes";
 import { LucideRedo, LucideSave, LucideUndo, LucideX } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
@@ -6,6 +6,24 @@ import type {
   AnnotationAction,
   AnnotationEditorProps
 } from "~types/annotations"
+
+// Enhanced text annotation interface
+interface TextAnnotation extends AnnotationAction {
+  text: string
+  fontSize: number
+  fontFamily: string
+  textAlign: 'left' | 'center' | 'right'
+  backgroundColor?: string
+  borderWidth?: number
+  borderColor?: string
+}
+
+// Blur options interface
+interface BlurOptions {
+  type: 'gaussian' | 'motion' | 'pixelate'
+  intensity: number
+  direction?: 'horizontal' | 'vertical' // for motion blur
+}
 
 const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
   imageData,
@@ -26,11 +44,43 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
   const [currentAction, setCurrentAction] = useState<AnnotationAction | null>(
     null
   )
-  const [history, setHistory] = useState<AnnotationAction[][]>([])
-  const [historyIndex, setHistoryIndex] = useState<number>(-1)
+  const [history, setHistory] = useState<AnnotationAction[][]>([[]])
+  const [historyIndex, setHistoryIndex] = useState<number>(0)
+
+  // Enhanced text tool state
+  const [textInputVisible, setTextInputVisible] = useState(false)
+  const [textInputPosition, setTextInputPosition] = useState({ x: 0, y: 0 })
+  const [textInputValue, setTextInputValue] = useState("")
+  const [fontSize, setFontSize] = useState<number>(16)
+  const [fontFamily, setFontFamily] = useState<string>("Arial")
+  const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>("left")
+  const textInputRef = useRef<HTMLInputElement>(null)
+
+  // Enhanced blur tool state
+  const [blurType, setBlurType] = useState<BlurOptions['type']>('gaussian')
+  const [blurIntensity, setBlurIntensity] = useState<number>(5)
+  const [blurDirection, setBlurDirection] = useState<BlurOptions['direction']>('horizontal')
 
   const baseCanvasRef = useRef<HTMLCanvasElement>(null)
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null)
+  const originalImageRef = useRef<HTMLImageElement | null>(null)
+
+  // Enhanced coordinate transformation with scroll and zoom handling
+  const getMousePos = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = overlayCanvasRef.current!
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+
+    // Account for page scroll
+    const scrollX = window.pageXOffset || document.documentElement.scrollLeft
+    const scrollY = window.pageYOffset || document.documentElement.scrollTop
+
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY
+    }
+  }
 
   // Load image onto base canvas
   useEffect(() => {
@@ -44,34 +94,50 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
         canvas.width = width
         canvas.height = height
         ctx.drawImage(img, 0, 0, width, height)
+        originalImageRef.current = img
         redrawActions()
       }
       img.src = imageData
     }
   }, [imageData, width, height])
 
-  // Redraw all actions
+  // Optimized redraw function with requestAnimationFrame
   const redrawActions = useCallback(() => {
-    if (!baseCanvasRef.current || !overlayCanvasRef.current) return
+    if (!baseCanvasRef.current || !overlayCanvasRef.current || !originalImageRef.current) return
 
-    const overlayCanvas = overlayCanvasRef.current
-    const overlayCtx = overlayCanvas.getContext("2d")
-    if (!overlayCtx) return
+    const startTime = performance.now()
 
-    // Clear overlay
-    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height)
+    // Use requestAnimationFrame for smooth rendering
+    requestAnimationFrame(() => {
+      const overlayCanvas = overlayCanvasRef.current!
+      const overlayCtx = overlayCanvas.getContext("2d")
+      if (!overlayCtx) return
 
-    // Draw all actions on base canvas
-    const baseCanvas = baseCanvasRef.current
-    const baseCtx = baseCanvas.getContext("2d")
-    if (!baseCtx) return
+      // Clear overlay
+      overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height)
 
-    actions.forEach((action) => {
-      drawAction(baseCtx, action)
+      // Redraw original image on base canvas first
+      const baseCanvas = baseCanvasRef.current!
+      const baseCtx = baseCanvas.getContext("2d")
+      if (!baseCtx) return
+
+      baseCtx.clearRect(0, 0, baseCanvas.width, baseCanvas.height)
+      baseCtx.drawImage(originalImageRef.current!, 0, 0, width, height)
+
+      // Draw all actions
+      actions.forEach((action) => {
+        drawAction(baseCtx, action)
+      })
+
+      // Performance logging
+      const renderTime = performance.now() - startTime
+      if (renderTime > 16) { // More than 60fps
+        console.warn(`Slow render detected: ${renderTime}ms`)
+      }
     })
-  }, [actions])
+  }, [actions, width, height])
 
-  // Draw a single action
+  // Enhanced draw action with text styling and blur support
   const drawAction = (
     ctx: CanvasRenderingContext2D,
     action: AnnotationAction
@@ -113,31 +179,69 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
         break
       case "text":
         if (action.text) {
-          ctx.font = `${action.size * 4}px Arial`
+          const textAction = action as TextAnnotation
+          ctx.font = `${textAction.fontSize || action.size * 4}px ${textAction.fontFamily || 'Arial'}`
+          ctx.textAlign = textAction.textAlign || 'left'
+
+          // Draw text background if specified
+          if (textAction.backgroundColor) {
+            const metrics = ctx.measureText(action.text)
+            const textWidth = metrics.width
+            const textHeight = textAction.fontSize || action.size * 4
+
+            ctx.fillStyle = textAction.backgroundColor
+            ctx.fillRect(
+              action.startX - 2,
+              action.startY - textHeight + 2,
+              textWidth + 4,
+              textHeight + 4
+            )
+            ctx.fillStyle = action.color
+          }
+
+          // Draw text border if specified
+          if (textAction.borderWidth && textAction.borderColor) {
+            ctx.strokeStyle = textAction.borderColor
+            ctx.lineWidth = textAction.borderWidth
+            const metrics = ctx.measureText(action.text)
+            const textWidth = metrics.width
+            const textHeight = textAction.fontSize || action.size * 4
+
+            ctx.strokeRect(
+              action.startX - 2 - textAction.borderWidth,
+              action.startY - textHeight + 2 - textAction.borderWidth,
+              textWidth + 4 + textAction.borderWidth * 2,
+              textHeight + 4 + textAction.borderWidth * 2
+            )
+            ctx.strokeStyle = action.color
+            ctx.lineWidth = action.size
+          }
+
           ctx.fillText(action.text, action.startX, action.startY)
         }
         break
       case "blur":
-        // Simplified blur - draw semi-transparent rectangle
-        ctx.fillStyle = "rgba(200, 200, 200, 0.7)"
-        ctx.fillRect(
-          Math.min(action.startX, action.endX!),
-          Math.min(action.startY, action.endY!),
-          Math.abs(action.endX! - action.startX),
-          Math.abs(action.endY! - action.startY)
-        )
+        // Enhanced blur with multiple blur types
+        applyBlur(ctx, action.startX, action.startY, action.endX!, action.endY!, {
+          type: 'gaussian',
+          intensity: action.size,
+          direction: 'horizontal'
+        })
         break
     }
   }
 
+  // Enhanced arrow drawing with customizable options
   const drawArrow = (
     ctx: CanvasRenderingContext2D,
     fromX: number,
     fromY: number,
     toX: number,
-    toY: number
+    toY: number,
+    options?: { headLength?: number; headAngle?: number }
   ) => {
-    const headLength = 15
+    const headLength = options?.headLength || 15
+    const headAngle = options?.headAngle || Math.PI / 6
     const angle = Math.atan2(toY - fromY, toX - fromX)
 
     // Draw line
@@ -146,17 +250,17 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
     ctx.lineTo(toX, toY)
     ctx.stroke()
 
-    // Draw arrowhead
+    // Draw enhanced arrowhead
     ctx.beginPath()
     ctx.moveTo(toX, toY)
     ctx.lineTo(
-      toX - headLength * Math.cos(angle - Math.PI / 6),
-      toY - headLength * Math.sin(angle - Math.PI / 6)
+      toX - headLength * Math.cos(angle - headAngle),
+      toY - headLength * Math.sin(angle - headAngle)
     )
     ctx.moveTo(toX, toY)
     ctx.lineTo(
-      toX - headLength * Math.cos(angle + Math.PI / 6),
-      toY - headLength * Math.sin(angle + Math.PI / 6)
+      toX - headLength * Math.cos(angle + headAngle),
+      toY - headLength * Math.sin(angle + headAngle)
     )
     ctx.stroke()
   }
@@ -178,13 +282,97 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
     ctx.stroke()
   }
 
-  const getMousePos = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = overlayCanvasRef.current!
-    const rect = canvas.getBoundingClientRect()
-    return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height)
+  // Advanced blur application function
+  const applyBlur = (
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    endX: number,
+    endY: number,
+    options: BlurOptions
+  ) => {
+    const w = Math.abs(endX - x)
+    const h = Math.abs(endY - y)
+
+    // Create a temporary canvas for blurring
+    const tempCanvas = document.createElement('canvas')
+    const tempCtx = tempCanvas.getContext('2d')
+    tempCanvas.width = w
+    tempCanvas.height = h
+
+    // Copy the area to blur from the original image
+    tempCtx?.drawImage(originalImageRef.current!, x, y, w, h, 0, 0, w, h)
+
+    switch (options.type) {
+      case 'gaussian':
+        // Gaussian blur using CSS filter
+        ctx.filter = `blur(${options.intensity}px)`
+        ctx.drawImage(tempCanvas, x, y)
+        break
+      case 'motion':
+        // Motion blur using directional blur
+        ctx.filter = `blur(${options.intensity}px ${options.direction === 'horizontal' ? 'X' : 'Y'})`
+        ctx.drawImage(tempCanvas, x, y)
+        break
+      case 'pixelate':
+        // Pixelation effect
+        const pixelSize = Math.max(2, Math.floor(options.intensity / 2))
+
+        // Draw pixelated version
+        for (let px = 0; px < w; px += pixelSize) {
+          for (let py = 0; py < h; py += pixelSize) {
+            const pixelData = tempCtx?.getImageData(px, py, 1, 1)
+            if (pixelData) {
+              const avgColor = getAverageColor(pixelData.data)
+              ctx.fillStyle = `rgb(${avgColor.r}, ${avgColor.g}, ${avgColor.b})`
+              ctx.fillRect(px, py, pixelSize, pixelSize)
+            }
+          }
+        }
+        break
     }
+
+    // Reset filter
+    ctx.filter = 'none'
+  }
+
+  // Helper function for pixelation
+  const getAverageColor = (data: Uint8ClampedArray) => {
+    let r = 0, g = 0, b = 0, count = 0
+    for (let i = 0; i < data.length; i += 4) {
+      r += data[i]
+      g += data[i + 1]
+      b += data[i + 2]
+      count++
+    }
+
+    return {
+      r: Math.round(r / count),
+      g: Math.round(g / count),
+      b: Math.round(b / count)
+    }
+  }
+
+  // Smooth freehand drawing with path smoothing
+  const smoothPath = (points: { x: number; y: number }[]): { x: number; y: number }[] => {
+    if (points.length < 3) return points
+
+    const smoothed: { x: number; y: number }[] = []
+    for (let i = 0; i < points.length; i++) {
+      if (i === 0 || i === points.length - 1) {
+        smoothed.push(points[i])
+      } else {
+        const prev = points[i - 1]
+        const curr = points[i]
+        const next = points[i + 1]
+
+        smoothed.push({
+          x: curr.x * 0.5 + (prev.x + next.x) * 0.25,
+          y: curr.y * 0.5 + (prev.y + next.y) * 0.25
+        })
+      }
+    }
+    return smoothed
   }
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -198,8 +386,18 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
       size: brushSize,
       startX: pos.x,
       startY: pos.y,
-      ...(selectedTool === "text" ? { text: "Sample Text" } : {}),
-      ...(selectedTool === "freehand" ? { points: [pos] } : {})
+      ...(selectedTool === "text" ? {
+        text: "",
+        fontSize: fontSize,
+        fontFamily: fontFamily,
+        textAlign: textAlign
+      } : {}),
+      ...(selectedTool === "freehand" ? { points: [pos] } : {}),
+      ...(selectedTool === "blur" ? {
+        blurType: blurType,
+        blurIntensity: blurIntensity,
+        blurDirection: blurDirection
+      } : {})
     }
 
     setCurrentAction(newAction)
@@ -231,7 +429,8 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
         updatedAction.endY = pos.y
         break
       case "freehand":
-        updatedAction.points = [...(currentAction.points || []), pos]
+        const currentPoints = currentAction.points || []
+        updatedAction.points = smoothPath([...currentPoints, pos])
         break
     }
 
@@ -246,11 +445,11 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
 
     // Handle text input
     if (selectedTool === "text") {
-      const text = prompt("Enter text:", "Sample Text")
-      if (text) {
-        finalAction.text = text
-        addAction(finalAction)
-      }
+      setTextInputPosition({ x: finalAction.startX, y: finalAction.startY })
+      setTextInputValue(finalAction.text || "")
+      setTextInputVisible(true)
+      // Focus input field after it becomes visible
+      setTimeout(() => textInputRef.current?.focus(), 0)
     } else if (
       selectedTool !== "freehand" ||
       (finalAction.points && finalAction.points.length > 1)
@@ -273,6 +472,24 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
     }
   }
 
+  const handleTextInputSubmit = () => {
+    if (textInputValue.trim() && currentAction) {
+      const finalAction = {
+        ...currentAction,
+        text: textInputValue.trim()
+      }
+      addAction(finalAction)
+    }
+    setTextInputVisible(false)
+    setTextInputValue("")
+  }
+
+  const handleTextInputCancel = () => {
+    setTextInputVisible(false)
+    setTextInputValue("")
+  }
+
+  // Robust history management
   const addAction = (action: AnnotationAction) => {
     const newActions = [...actions, action]
     setActions(newActions)
@@ -284,18 +501,22 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
     setHistoryIndex(newHistory.length - 1)
   }
 
+  // Fixed undo function
   const undo = () => {
     if (historyIndex > 0) {
-      setHistoryIndex(historyIndex - 1)
-      setActions(history[historyIndex - 1] || [])
+      const newIndex = historyIndex - 1
+      setHistoryIndex(newIndex)
+      setActions(history[newIndex] || [])
       redrawActions()
     }
   }
 
+  // Fixed redo function
   const redo = () => {
     if (historyIndex < history.length - 1) {
-      setHistoryIndex(historyIndex + 1)
-      setActions(history[historyIndex + 1])
+      const newIndex = historyIndex + 1
+      setHistoryIndex(newIndex)
+      setActions(history[newIndex])
       redrawActions()
     }
   }
@@ -328,6 +549,31 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
     }
   }
 
+  // Enhanced keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key) {
+          case "z":
+            e.preventDefault()
+            undo()
+            break
+          case "y":
+            e.preventDefault()
+            redo()
+            break
+          case "s":
+            e.preventDefault()
+            exportImage()
+            break
+        }
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [historyIndex, history.length])
+
   const tools = [
     { value: "arrow", label: "Arrow" },
     { value: "rectangle", label: "Rectangle" },
@@ -346,6 +592,32 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
     "#00ffff",
     "#000000",
     "#ffffff"
+  ]
+
+  const fontFamilies = [
+    "Arial",
+    "Helvetica",
+    "Times New Roman",
+    "Courier New",
+    "Georgia",
+    "Verdana"
+  ]
+
+  const textAligns = [
+    { value: "left", label: "Left" },
+    { value: "center", label: "Center" },
+    { value: "right", label: "Right" }
+  ]
+
+  const blurTypes = [
+    { value: "gaussian", label: "Gaussian" },
+    { value: "motion", label: "Motion" },
+    { value: "pixelate", label: "Pixelate" }
+  ]
+
+  const blurDirections = [
+    { value: "horizontal", label: "Horizontal" },
+    { value: "vertical", label: "Vertical" }
   ]
 
   return (
@@ -374,8 +646,8 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
           ))}
         </SegmentedControl.Root>
 
-        <Flex align={"center"} justify={'between'} width={'100%'}>
-          <Flex align={'center'} gap={'4'}>
+        <Flex align={"center"} justify={"between"} width={"100%"}>
+          <Flex align={"center"} gap={"4"}>
             {/* Color Picker */}
             <Flex align={"center"} gap={"2"}>
               {colors.map((color) => (
@@ -400,43 +672,138 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
             <Separator orientation="vertical" size="1" />
 
             {/* Brush Size */}
-            <div style={{ display: "none", alignItems: "center", gap: 8 }}>
-              <Text size="2">Size:</Text>
-              <input
-                type="range"
-                min="1"
-                max="10"
-                value={brushSize}
-                onChange={(e) => setBrushSize(parseInt(e.target.value))}
-                style={{ width: 80 }}
+            <Flex align={"center"} gap={"2"}>
+              <Slider
+                className={"w-32"}
+                defaultValue={[brushSize]}
+                min={1}
+                max={10}
+                step={1}
+                size={"3"}
+                onValueChange={(value) => setBrushSize(value[0])}
               />
               <Text size="2">{brushSize}px</Text>
-            </div>
-
-            {/* Radix SLider - Brush Size */}
-            <Slider
-              className={"w-32"}
-              defaultValue={[brushSize * 10]}
-              size={"3"}
-              onValueChange={(value) => setBrushSize(value[0])}
-            />
+            </Flex>
           </Flex>
 
-          <Flex align={'center'} gap={'4'}>
+          <Flex align={"center"} gap={"4"}>
+            {/* Blur Tool Options - Show only when blur is selected */}
+            {selectedTool === "blur" && (
+              <>
+                <Separator orientation="vertical" size="1" />
+                <Flex align={"center"} gap={"2"}>
+                  <Flex align={"center"} gap={"2"}>
+                    <Text size="2">Type:</Text>
+                    <SegmentedControl.Root
+                      value={blurType}
+                      onValueChange={(value) => setBlurType(value as any)}>
+                      {blurTypes.map((type) => (
+                        <SegmentedControl.Item key={type.value} value={type.value}>
+                          {type.label}
+                        </SegmentedControl.Item>
+                      ))}
+                    </SegmentedControl.Root>
+                  </Flex>
+
+                  <Flex align={"center"} gap={"2"}>
+                    <Text size="2">Intensity:</Text>
+                    <Slider
+                      className={"w-24"}
+                      defaultValue={[blurIntensity]}
+                      min={1}
+                      max={20}
+                      step={1}
+                      size={"1"}
+                      onValueChange={(value) => setBlurIntensity(value[0])}
+                    />
+                    <Text size="2">{blurIntensity}px</Text>
+                  </Flex>
+
+                  <Flex align={"center"} gap={"2"}>
+                    <Text size="2">Direction:</Text>
+                    <SegmentedControl.Root
+                      value={blurDirection}
+                      onValueChange={(value) => setBlurDirection(value as any)}>
+                      {blurDirections.map((direction) => (
+                        <SegmentedControl.Item key={direction.value} value={direction.value}>
+                          {direction.label}
+                        </SegmentedControl.Item>
+                      ))}
+                    </SegmentedControl.Root>
+                  </Flex>
+                </Flex>
+              </>
+            )}
+
+            {/* Text Tool Options - Show only when text is selected */}
+            {selectedTool === "text" && (
+              <Flex position={'absolute'} left={'2'}>
+                <Separator orientation="vertical" size="1" />
+                <Flex align={"center"} gap={"2"}>
+                  <Flex align={"center"} gap={"2"}>
+                    <Text size="2">Font:</Text>
+                    <select
+                      value={fontFamily}
+                      onChange={(e) => setFontFamily(e.target.value)}
+                      style={{
+                        padding: "4px 8px",
+                        border: "1px solid var(--gray-6)",
+                        borderRadius: "4px",
+                        backgroundColor: "white"
+                      }}
+                    >
+                      {fontFamilies.map((font) => (
+                        <option key={font} value={font}>
+                          {font}
+                        </option>
+                      ))}
+                    </select>
+                  </Flex>
+
+                  <Flex align={"center"} gap={"2"}>
+                    <Text size="2">Size:</Text>
+                    <Slider
+                      className={"w-24"}
+                      defaultValue={[fontSize]}
+                      min={12}
+                      max={48}
+                      step={2}
+                      size={"1"}
+                      onValueChange={(value) => setFontSize(value[0])}
+                    />
+                    <Text size="2">{fontSize}px</Text>
+                  </Flex>
+
+                  <Flex align={"center"} gap={"2"}>
+                    <Text size="2">Align:</Text>
+                    <SegmentedControl.Root
+                      value={textAlign}
+                      onValueChange={(value) => setTextAlign(value as any)}>
+                      {textAligns.map((align) => (
+                        <SegmentedControl.Item key={align.value} value={align.value}>
+                          {align.label}
+                        </SegmentedControl.Item>
+                      ))}
+                    </SegmentedControl.Root>
+                  </Flex>
+                </Flex>
+              </Flex>
+            )}
+
             {/* Undo/Redo */}
             <Button
               size="1"
               variant="soft"
               onClick={undo}
               disabled={historyIndex <= 0}>
-              <LucideUndo size={14} strokeWidth={2} />️ Undo
+              <LucideUndo size={14} strokeWidth={2} /> Undo
             </Button>
             <Button
               size="1"
               variant="soft"
               onClick={redo}
               disabled={historyIndex >= history.length - 1}>
-              <LucideRedo size={14} strokeWidth={2} />️ Redo
+              <LucideRedo size={14} strokeWidth={2} /> Redo
             </Button>
 
             <Separator orientation="vertical" size="1" />
@@ -467,7 +834,7 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
         p={"2"}
         overflowY={"auto"}
         width={"100%"}
-        className={"bg-green-600"}>
+        className={"bg-gray-50"}>
         <canvas
           ref={baseCanvasRef}
           style={{
@@ -496,10 +863,67 @@ const AnnotationEditorCore: React.FC<AnnotationEditorProps> = ({
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
         />
+
+        {/* Enhanced Text Input */}
+        {textInputVisible && (
+          <div
+            style={{
+              position: "absolute",
+              left: textInputPosition.x,
+              top: textInputPosition.y,
+              zIndex: 1000,
+              transform: "translate(-50%, -50%)"
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: "white",
+                border: "1px solid var(--gray-6)",
+                borderRadius: "8px",
+                padding: "8px",
+                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                minWidth: "200px"
+              }}
+            >
+              <input
+                ref={textInputRef}
+                type="text"
+                value={textInputValue}
+                onChange={(e) => setTextInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleTextInputSubmit()
+                  } else if (e.key === "Escape") {
+                    handleTextInputCancel()
+                  }
+                }}
+                onBlur={handleTextInputSubmit}
+                style={{
+                  fontSize: `${fontSize}px`,
+                  fontFamily: fontFamily,
+                  textAlign: textAlign,
+                  border: "none",
+                  outline: "none",
+                  backgroundColor: "transparent",
+                  minWidth: "180px",
+                  width: "100%"
+                }}
+                placeholder="Enter text..."
+                autoFocus
+              />
+              <Flex justify={"between"} mt={"2"}>
+                <Button size="1" variant="soft" onClick={handleTextInputSubmit}>
+                  Save
+                </Button>
+                <Button size="1" variant="soft" onClick={handleTextInputCancel}>
+                  Cancel
+                </Button>
+              </Flex>
+            </div>
+          </div>
+        )}
       </Flex>
     </Flex>
-    /*<Theme accentColor="crimson" panelBackground={'translucent'} grayColor="sand" radius="none" scaling="95%" className={"dark"}>
-    </Theme>*/
   )
 }
 

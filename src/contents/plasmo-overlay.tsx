@@ -1,13 +1,11 @@
 import { LucideX } from "lucide-react"
 
-// import cssText from "data-text:~/contents/plasmo-overlay.css";
 import {
   Button,
   Card,
   Flex,
   Heading,
   IconButton,
-  Inset,
   Theme
 } from "@radix-ui/themes"
 import cssText from "data-text:~/globals.css"
@@ -22,12 +20,6 @@ export const config: PlasmoCSConfig = {
   css: ["font.css"],
   run_at: "document_start",
 }
-
-/*export const getStyle = () => {
-  const style = document.createElement("style")
-  style.textContent = cssText
-  return style
-}*/
 
 /**
  * Generates a style element with adjusted CSS to work correctly within a Shadow DOM.
@@ -66,41 +58,38 @@ const PlasmoOverlay = () => {
   const [imageWidth, setImageWidth] = useState<number>(0)
   const [imageHeight, setImageHeight] = useState<number>(0)
 
-  // Listen for messages from content script
+  // Listen for messages from background script using Plasmo messaging
   useEffect(() => {
-    const handleShowOverlayEditor = (event: CustomEvent) => {
-      const { dataUrl, width, height } = event.detail
-      setImageData(dataUrl)
-      setImageWidth(width)
-      setImageHeight(height)
-      setShowEditor(true)
+    const messageHandler = (message: any) => {
+      switch (message.type) {
+        case 'SHOW_OVERLAY_EDITOR':
+          setImageData(message.data.dataUrl)
+          setImageWidth(message.data.width)
+          setImageHeight(message.data.height)
+          setShowEditor(true)
+          break
+        case 'HIDE_OVERLAY_EDITOR':
+          setShowEditor(false)
+          break
+      }
     }
 
-    const handleHideOverlayEditor = () => {
-      setShowEditor(false)
-    }
-
-    window.addEventListener('show-overlay-editor', handleShowOverlayEditor as EventListener)
-    window.addEventListener('hide-overlay-editor', handleHideOverlayEditor)
-
-    return () => {
-      window.removeEventListener('show-overlay-editor', handleShowOverlayEditor as EventListener)
-      window.removeEventListener('hide-overlay-editor', handleHideOverlayEditor)
+    // Use Chrome runtime messaging for content scripts
+    if (typeof chrome !== 'undefined' && chrome.runtime.onMessage) {
+      chrome.runtime.onMessage.addListener(messageHandler)
+      return () => chrome.runtime.onMessage.removeListener(messageHandler)
     }
   }, [])
 
   const handleStartCapture = async () => {
     console.log('handleStartCapture called')
     setIsCapturing(true)
-    console.log('handleStartCapture called step 2')
 
     try {
-      console.log('handleStartCapture called step 3 - Inside try')
       const response = await sendToBackground({
         name: "start-capture",
         body: { useOverlay: true }
       })
-      console.log('handleStartCapture called step 4 - Inside try - Called start capture')
 
       console.log('Start capture response:', response)
 
@@ -144,15 +133,15 @@ const PlasmoOverlay = () => {
         <div className="anno-mark-overlay-container">
           <Card className="anno-mark-editor-wrapper h-full">
             <Flex direction={'column'} className="h-full">
-              <Flex align={'center'} justify={'between'} p={'4'} className="anno-mark-editor-heade h-12">
-                <Heading size={"4"} className="anno-mark-editor-titl">
+              <Flex align={'center'} justify={'between'} p={'4'} className="h-12">
+                <Heading size={"4"} className="">
                   Anno-Mark Editor
                 </Heading>
                 <IconButton
                   radius={'full'}
                   size={'3'}
                   variant={'soft'}
-                  className="anno-mark-editor-clos"
+                  className=""
                   onClick={() => setShowEditor(false)}
                   title="Close"
                 >
@@ -160,9 +149,7 @@ const PlasmoOverlay = () => {
                 </IconButton>
               </Flex>
 
-              {/*<Inset clip="padding-box" side="all" p={'current'} pb="current">*/}
-              {/*</Inset>*/}
-              <div className="h-[calc(100%-48px)] anno-mark-editor-conten">
+              <div className="h-[calc(100%-48px)]">
                 {imageData ? (
                   <AnnotationEditorCore
                     imageData={imageData}
