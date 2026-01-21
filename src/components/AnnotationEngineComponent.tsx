@@ -36,10 +36,10 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const engineRef = useRef<AnnotationEngine | null>(null)
   const imageRef = useRef<HTMLImageElement | null>(null)
-  
+
   const [selectedTool, setSelectedTool] = useState<ToolType>("arrow")
   const [selectedColor, setSelectedColor] = useState<string>("#ff0000")
-  const [brushSize, setBrushSize] = useState<number>(2)
+  const [brushSize, setBrushSize] = useState<number>(4)
   const [history, setHistory] = useState<string[]>([""])
   const [historyIndex, setHistoryIndex] = useState<number>(0)
 
@@ -49,7 +49,7 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
     const currentState = engineRef.current.serialize()
     const newHistory = history.slice(0, historyIndex + 1)
     newHistory.push(currentState)
-    
+
     setHistory(newHistory)
     setHistoryIndex(newHistory.length - 1)
   }, [history, historyIndex])
@@ -95,7 +95,7 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
     // Clear canvas and draw image
     ctx.clearRect(0, 0, width, height)
     ctx.drawImage(imageRef.current, 0, 0, width, height)
-    
+
     // Redraw annotations if engine exists
     if (engineRef.current) {
       engineRef.current.redraw()
@@ -114,7 +114,8 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
     if (engineRef.current) {
       engineRef.current.setToolProperties({
         stroke: selectedColor,
-        strokeWidth: brushSize
+        strokeWidth: brushSize,
+        fill: selectedColor+22
       })
       engineRef.current.redraw()
     }
@@ -155,10 +156,10 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
     // Get annotation data and draw it
     const annotationData = engineRef.current.serialize()
     // This will need to be implemented to draw annotations on export canvas
-    
+
     // For now, use the engine's export method
     const dataUrl = engineRef.current.exportPNG()
-    
+
     if (onExport) {
       onExport(dataUrl)
     }
@@ -302,14 +303,14 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
             </Button>
 
             {/* Close Button */}
-            {showCloseButton && onClose && (
+            {/*{showCloseButton && onClose && (
               <>
                 <Separator orientation="vertical" size="1" />
                 <Button size="1" variant="soft" onClick={onClose}>
                   <LucideX size={14} strokeWidth={2} /> Close
                 </Button>
               </>
-            )}
+            )}*/}
           </Flex>
         </Flex>
       </Flex>

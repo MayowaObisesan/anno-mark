@@ -96,7 +96,7 @@ export class AnnotationEngine {
     const rect = this.canvas.getBoundingClientRect()
     const scaleX = this.canvas.width / rect.width
     const scaleY = this.canvas.height / rect.height
-    
+
     return {
       x: (e.clientX - rect.left) * scaleX,
       y: (e.clientY - rect.top) * scaleY
@@ -179,12 +179,11 @@ export class AnnotationEngine {
       // Apply current tool properties to new annotation
       const annotationWithProperties = {
         ...a,
-        stroke: a.stroke || this.toolProperties.stroke,
-        strokeWidth: a.strokeWidth || this.toolProperties.strokeWidth,
-        fill: a.fill || this.toolProperties.fill,
-        fontSize: a.fontSize || this.toolProperties.fontSize,
-        fontFamily: a.fontFamily || this.toolProperties.fontFamily,
-        backgroundColor: 'orange'
+        stroke: this.toolProperties.stroke,
+        strokeWidth: this.toolProperties.strokeWidth,
+        fill: this.toolProperties.fill,
+        fontSize: this.toolProperties.fontSize,
+        fontFamily: this.toolProperties.fontFamily,
       }
       this.annotations.push(annotationWithProperties)
       this.onAnnotationAdded?.()
@@ -207,16 +206,16 @@ export class AnnotationEngine {
     }
 
     // Apply current tool properties to annotations and render them
-    const annotationsWithProperties = this.annotations.map(annotation => ({
+    /*const annotationsWithProperties = this.annotations.map(annotation => ({
       ...annotation,
       stroke: annotation.stroke || this.toolProperties.stroke,
       strokeWidth: annotation.strokeWidth || this.toolProperties.strokeWidth,
       fill: annotation.fill || this.toolProperties.fill,
       fontSize: annotation.fontSize || this.toolProperties.fontSize,
       fontFamily: annotation.fontFamily || this.toolProperties.fontFamily
-    }))
+    }))*/
 
-    renderAnnotations(this.ctx, annotationsWithProperties, this.tools)
+    renderAnnotations(this.ctx, this.annotations, this.tools)
 
     // Draw selection handles
     if (this.selection.annotation) {
