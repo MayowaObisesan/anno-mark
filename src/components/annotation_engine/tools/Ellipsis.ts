@@ -86,7 +86,7 @@ export class EllipseTool implements Tool {
   getConfigSchema() {
     return [
       { key: "stroke", label: "Stroke", type: "color" as ToolConfigSchemaType },
-      { key: "fill", label: "Fill", type: "color" as ToolConfigSchemaType },
+      // { key: "fill", label: "Fill", type: "color" as ToolConfigSchemaType },
       { key: "strokeWidth", label: "Width", type: "number" as ToolConfigSchemaType, min: 1, max: 10 }
     ]
   }
