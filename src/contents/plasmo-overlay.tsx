@@ -13,7 +13,7 @@ import type { PlasmoCSConfig } from "plasmo";
 import React, { useEffect, useState } from "react";
 import { sendToBackground } from "@plasmohq/messaging";
 
-import AnnotationEditorCore from "~components/AnnotationEditorCore";
+import AnnotationEngineComponent from "~components/AnnotationEngineComponent";
 
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
@@ -65,7 +65,9 @@ const PlasmoOverlay = () => {
         case 'SHOW_OVERLAY_EDITOR':
           setImageData(message.data.dataUrl)
           setImageWidth(message.data.width)
+          console.log('Image width:', message.data.width)
           setImageHeight(message.data.height)
+          console.log('Image height:', message.data.height)
           setShowEditor(true)
           break
         case 'HIDE_OVERLAY_EDITOR':
@@ -151,7 +153,7 @@ const PlasmoOverlay = () => {
 
               <div className="h-[calc(100%-48px)]">
                 {imageData ? (
-                  <AnnotationEditorCore
+                  <AnnotationEngineComponent
                     imageData={imageData}
                     width={imageWidth}
                     height={imageHeight}

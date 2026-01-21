@@ -15,6 +15,7 @@ export class AnnotationEngine {
   private canvas: HTMLCanvasElement
   private annotations: Annotation[] = []
   private activeTool: ToolType = "arrow"
+  private backgroundImage: HTMLImageElement | null = null
 
   private readonly tools: Record<string, any>
 
@@ -24,6 +25,19 @@ export class AnnotationEngine {
     startPoint: null,
     original: null
   }
+
+  // Tool properties
+  private toolProperties: Record<string, any> = {
+    stroke: "#ff0000",
+    strokeWidth: 2,
+    fill: "transparent",
+    fontSize: 16,
+    fontFamily: "Arial"
+  }
+
+  // Event callbacks
+  private onAnnotationAdded?: () => void
+  private onAnnotationModified?: () => void
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
@@ -53,6 +67,23 @@ export class AnnotationEngine {
 
   getToolSchema(tool: ToolType) {
     return this.tools[tool].getConfigSchema()
+  }
+
+  setToolProperties(properties: Record<string, any>) {
+    this.toolProperties = { ...this.toolProperties, ...properties }
+  }
+
+  getToolProperties() {
+    return { ...this.toolProperties }
+  }
+
+  setBackgroundImage(image: HTMLImageElement) {
+    this.backgroundImage = image
+  }
+
+  setEventCallbacks(callbacks: { onAnnotationAdded?: () => void; onAnnotationModified?: () => void }) {
+    this.onAnnotationAdded = callbacks.onAnnotationAdded
+    this.onAnnotationModified = callbacks.onAnnotationModified
   }
 
   private bindEvents() {
@@ -136,11 +167,25 @@ export class AnnotationEngine {
   private onUp = (e: PointerEvent) => {
     if (this.selection.annotation) {
       this.selection = { annotation: null, handle: null, startPoint: null, original: null }
+      this.onAnnotationModified?.()
       return
     }
 
     const a = this.tools[this.activeTool].onPointerUp(this.getPoint(e))
-    if (a) this.annotations.push(a)
+    if (a) {
+      // Apply current tool properties to new annotation
+      const annotationWithProperties = {
+        ...a,
+        stroke: a.stroke || this.toolProperties.stroke,
+        strokeWidth: a.strokeWidth || this.toolProperties.strokeWidth,
+        fill: a.fill || this.toolProperties.fill,
+        fontSize: a.fontSize || this.toolProperties.fontSize,
+        fontFamily: a.fontFamily || this.toolProperties.fontFamily,
+        backgroundColor: 'orange'
+      }
+      this.annotations.push(annotationWithProperties)
+      this.onAnnotationAdded?.()
+    }
     this.redraw()
   }
 
@@ -150,15 +195,27 @@ export class AnnotationEngine {
   }*/
 
   redraw() {
-    /*this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+    // Clear canvas
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
 
-    this.annotations.forEach(a =>
-      this.tools[a.type].draw(this.ctx, a as any)
-    )*/
+    // Draw background image if available
+    if (this.backgroundImage) {
+      this.ctx.drawImage(this.backgroundImage, 0, 0, this.canvas.width, this.canvas.height)
+    }
 
-    clearCanvas(this.ctx, this.canvas.width, this.canvas.height)
-    renderAnnotations(this.ctx, this.annotations, this.tools)
+    // Apply current tool properties to annotations and render them
+    const annotationsWithProperties = this.annotations.map(annotation => ({
+      ...annotation,
+      stroke: annotation.stroke || this.toolProperties.stroke,
+      strokeWidth: annotation.strokeWidth || this.toolProperties.strokeWidth,
+      fill: annotation.fill || this.toolProperties.fill,
+      fontSize: annotation.fontSize || this.toolProperties.fontSize,
+      fontFamily: annotation.fontFamily || this.toolProperties.fontFamily
+    }))
 
+    renderAnnotations(this.ctx, annotationsWithProperties, this.tools)
+
+    // Draw selection handles
     if (this.selection.annotation) {
       const bounds = getBounds(this.selection.annotation)
       const handles = getHandles(bounds)
