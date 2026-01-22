@@ -9,6 +9,7 @@ import type { SelectionState } from './engine/selection'
 import { getBounds } from './engine/bounds'
 import { getHandles, hitHandle, drawHandles } from './engine/handles'
 import { moveAnnotation, resizeAnnotation } from './engine/transform'
+import { toolSettingsStore } from "~services/tool-settings-store"
 
 export class AnnotationEngine {
   private readonly ctx: CanvasRenderingContext2D
@@ -21,6 +22,11 @@ export class AnnotationEngine {
   private isDrawing: boolean = false
   private currentPreview: Annotation | null = null
   private drawingState: any = null
+
+  // Text editing state
+  private isTextEditing: boolean = false
+  private textEditingPosition: Point | null = null
+  private textEditingAnnotation: any = null
 
   private readonly tools: Record<string, any>
 
@@ -44,6 +50,7 @@ export class AnnotationEngine {
   private onAnnotationAdded?: () => void
   private onAnnotationModified?: () => void
   private onPreviewUpdate?: () => void
+  private onTextEditingChanged?: (isEditing: boolean) => void
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
@@ -61,10 +68,47 @@ export class AnnotationEngine {
     }
 
     this.bindEvents()
+    this.initializeToolSettings()
   }
 
-  setTool(tool: ToolType) {
+  private async initializeToolSettings() {
+    // Initialize the tool settings store
+    await toolSettingsStore.initialize()
+    
+    // Load current tool's settings
+    await this.loadCurrentToolSettings()
+    
+    // Set up listener for settings changes
+    toolSettingsStore.onPropertyChanged(async (toolType, propertyKey, newValue) => {
+      if (toolType === this.activeTool) {
+        this.toolProperties[propertyKey] = newValue
+        this.redraw()
+      }
+    })
+  }
+
+  private async loadCurrentToolSettings() {
+    const toolSettings = await toolSettingsStore.getToolSettings(this.activeTool)
+    this.toolProperties = { ...this.toolProperties, ...toolSettings }
+  }
+
+  async setTool(tool: ToolType) {
     this.activeTool = tool
+    await this.loadCurrentToolSettings()
+  }
+
+  async setToolProperties(properties: Record<string, any>) {
+    this.toolProperties = { ...this.toolProperties, ...properties }
+    
+    // Save to global store
+    await toolSettingsStore.setToolSettings(this.activeTool, this.toolProperties)
+  }
+
+  async setToolProperty(key: string, value: any) {
+    this.toolProperties[key] = value
+    
+    // Save to global store
+    await toolSettingsStore.setProperty(this.activeTool, key, value)
   }
 
   getActiveTool() {
@@ -73,10 +117,6 @@ export class AnnotationEngine {
 
   getToolSchema(tool: ToolType) {
     return this.tools[tool].getConfigSchema()
-  }
-
-  setToolProperties(properties: Record<string, any>) {
-    this.toolProperties = { ...this.toolProperties, ...properties }
   }
 
   getToolProperties() {
@@ -91,10 +131,12 @@ export class AnnotationEngine {
     onAnnotationAdded?: () => void; 
     onAnnotationModified?: () => void;
     onPreviewUpdate?: () => void;
+    onTextEditingChanged?: (isEditing: boolean) => void;
   }) {
     this.onAnnotationAdded = callbacks.onAnnotationAdded
     this.onAnnotationModified = callbacks.onAnnotationModified
     this.onPreviewUpdate = callbacks.onPreviewUpdate
+    this.onTextEditingChanged = callbacks.onTextEditingChanged
   }
 
   private bindEvents() {
@@ -158,6 +200,11 @@ export class AnnotationEngine {
   private onDown = (e: PointerEvent) => {
     const p = this.getPoint(e)
 
+    // Handle text editing mode differently
+    if (this.activeTool === "text" && this.isTextEditing) {
+      return // Don't interfere with text editing
+    }
+
     // Check for selection first
     for (let i = this.annotations.length - 1; i >= 0; i--) {
       const a = this.annotations[i]
@@ -165,6 +212,12 @@ export class AnnotationEngine {
         const bounds = getBounds(a)
         const handles = getHandles(bounds)
         const handle = hitHandle(p, handles)
+
+        // Handle text selection for editing
+        if (a.type === "text") {
+          this.startTextEditing(a.position, a)
+          return
+        }
 
         this.selection = {
           annotation: a,
@@ -178,6 +231,13 @@ export class AnnotationEngine {
 
     // Clear selection and start drawing
     this.selection = { annotation: null, handle: null, startPoint: null, original: null }
+
+    // Handle text tool click
+    if (this.activeTool === "text") {
+      this.startTextEditing(p)
+      return
+    }
+
     this.startDrawing(p)
   }
 
@@ -284,6 +344,94 @@ export class AnnotationEngine {
     }
   }
 
+  // Text editing methods
+  startTextEditing(position: Point, annotation?: any) {
+    const textTool = this.tools.text as TextTool
+    
+    if (textTool.startTextEditing(position, annotation)) {
+      this.isTextEditing = true
+      this.textEditingPosition = position
+      this.textEditingAnnotation = annotation
+      this.onTextEditingChanged?.(true)
+    }
+  }
+
+  finishTextEditing(text: string) {
+    const textTool = this.tools.text as TextTool
+    const annotation = textTool.finishTextEditing(text)
+    
+    if (annotation) {
+      if (textTool.getEditingAnnotation()) {
+        // Update existing annotation
+        const index = this.annotations.findIndex(a => a.id === annotation.id)
+        if (index !== -1) {
+          // Apply current tool properties
+          const annotationWithProperties = {
+            ...annotation,
+            stroke: this.toolProperties.stroke,
+            strokeWidth: this.toolProperties.strokeWidth,
+            fill: this.toolProperties.fill,
+            fontSize: this.toolProperties.fontSize,
+            fontFamily: this.toolProperties.fontFamily,
+          }
+          this.annotations[index] = annotationWithProperties
+          this.onAnnotationModified?.()
+        }
+      } else {
+        // Add new annotation
+        const annotationWithProperties = {
+          ...annotation,
+          stroke: this.toolProperties.stroke,
+          strokeWidth: this.toolProperties.strokeWidth,
+          fill: this.toolProperties.fill,
+          fontSize: this.toolProperties.fontSize,
+          fontFamily: this.toolProperties.fontFamily,
+        }
+        this.annotations.push(annotationWithProperties)
+        this.onAnnotationAdded?.()
+      }
+    }
+
+    this.cancelTextEditing()
+  }
+
+  cancelTextEditing() {
+    const textTool = this.tools.text as TextTool
+    textTool.cancelTextEditing()
+    
+    this.isTextEditing = false
+    this.textEditingPosition = null
+    this.textEditingAnnotation = null
+    this.onTextEditingChanged?.(false)
+    this.redraw()
+  }
+
+  updateTextPreview(text: string) {
+    const textTool = this.tools.text as TextTool
+    textTool.updatePreviewText(text)
+    
+    // Update preview for real-time feedback
+    if (this.isTextEditing && this.textEditingPosition) {
+      const previewAnnotation = textTool.getPreview({
+        position: this.textEditingPosition,
+        text: text
+      })
+      
+      if (previewAnnotation) {
+        this.currentPreview = {
+          ...previewAnnotation,
+          stroke: this.toolProperties.stroke,
+          strokeWidth: this.toolProperties.strokeWidth,
+          fill: this.toolProperties.fill,
+          fontSize: this.toolProperties.fontSize,
+          fontFamily: this.toolProperties.fontFamily,
+        }
+      }
+      
+      this.redraw()
+    }
+  }
+
   exportPNG(): string {
     return this.canvas.toDataURL("image/png")
   }
@@ -304,5 +452,18 @@ export class AnnotationEngine {
 
   getCurrentPreview(): Annotation | null {
     return this.currentPreview
+  }
+
+  // Public methods for text editing state
+  getIsTextEditing(): boolean {
+    return this.isTextEditing
+  }
+
+  getTextEditingPosition(): Point | null {
+    return this.textEditingPosition
+  }
+
+  getTextEditingAnnotation(): any {
+    return this.textEditingAnnotation
   }
 }

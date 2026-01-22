@@ -10,6 +10,7 @@ import {
 import { LucideRedo, LucideSave, LucideUndo, LucideX } from "lucide-react"
 
 import { AnnotationEngine } from "~components/annotation_engine/AnnotationEngine"
+import { TextInputOverlay } from "~components/annotation_engine/components"
 import type { ToolType } from "~components/annotation_engine/engine/types"
 import { Toolbar } from "~components/annotation_engine/toolbar/toolbar"
 
@@ -35,6 +36,7 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
   className = ""
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const engineRef = useRef<AnnotationEngine | null>(null)
   const imageRef = useRef<HTMLImageElement | null>(null)
 
@@ -43,6 +45,11 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
   const [brushSize, setBrushSize] = useState<number>(4)
   const [history, setHistory] = useState<string[]>([""])
   const [historyIndex, setHistoryIndex] = useState<number>(0)
+
+  // Text editing state
+  const [isTextEditing, setIsTextEditing] = useState<boolean>(false)
+  const [textEditingPosition, setTextEditingPosition] = useState<{ x: number; y: number } | null>(null)
+  const [textEditingAnnotation, setTextEditingAnnotation] = useState<any>(null)
 
   const saveToHistory = useCallback(() => {
     if (!engineRef.current) return
@@ -66,13 +73,20 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
     const engine = new AnnotationEngine(canvas)
     engineRef.current = engine
 
-    // Set up event callbacks for automatic history saving and preview updates
+    // Set up event callbacks for automatic history saving and text editing
     engine.setEventCallbacks({
       onAnnotationAdded: saveToHistory,
       onAnnotationModified: saveToHistory,
       onPreviewUpdate: () => {
         // Force a re-render when preview updates
         // The canvas will be redrawn by the engine itself
+      },
+      onTextEditingChanged: (isEditing) => {
+        setIsTextEditing(isEditing)
+        if (!isEditing) {
+          setTextEditingPosition(null)
+          setTextEditingAnnotation(null)
+        }
       }
     })
 
@@ -89,6 +103,17 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
       // Cleanup if needed
     }
   }, [imageData, width, height])
+
+  // Handle text editing position updates from engine
+  useEffect(() => {
+    if (!engineRef.current) return
+
+    const position = engineRef.current.getTextEditingPosition()
+    const annotation = engineRef.current.getTextEditingAnnotation()
+
+    setTextEditingPosition(position)
+    setTextEditingAnnotation(annotation)
+  }, [engineRef.current?.getIsTextEditing()])
 
   // Draw background image
   const drawBackground = useCallback(() => {
@@ -121,8 +146,9 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
         stroke: selectedColor,
         strokeWidth: brushSize,
         fill: selectedColor+22
+      }).then(() => {
+        engineRef.current?.redraw()
       })
-      engineRef.current.redraw()
     }
   }, [selectedColor, brushSize])
 
@@ -170,6 +196,25 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
     }
   }, [width, height, onExport])
 
+  // Text editing handlers
+  const handleTextComplete = useCallback((text: string) => {
+    if (engineRef.current) {
+      engineRef.current.finishTextEditing(text)
+    }
+  }, [])
+
+  const handleTextCancel = useCallback(() => {
+    if (engineRef.current) {
+      engineRef.current.cancelTextEditing()
+    }
+  }, [])
+
+  const handleTextChange = useCallback((text: string) => {
+    if (engineRef.current) {
+      engineRef.current.updateTextPreview(text)
+    }
+  }, [])
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -189,11 +234,17 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
             break
         }
       }
+
+      // Handle Escape key for text editing
+      if (e.key === "Escape" && isTextEditing) {
+        e.preventDefault()
+        handleTextCancel()
+      }
     }
 
     document.addEventListener("keydown", handleKeyDown)
     return () => document.removeEventListener("keydown", handleKeyDown)
-  }, [undo, redo, exportImage])
+  }, [undo, redo, exportImage, isTextEditing, handleTextCancel])
 
   const tools = [
     { value: "arrow", label: "Arrow" },
@@ -293,6 +344,7 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
 
       {/* Canvas Container */}
       <Flex
+        ref={containerRef}
         direction={"column"}
         position={"relative"}
         gap={"2"}
@@ -308,9 +360,24 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
             maxWidth: "100%",
             width: "auto",
             height: "auto",
-            cursor: "crosshair"
+            cursor: selectedTool === "text" ? "text" : "crosshair"
           }}
         />
+
+        {/* Text Input Overlay */}
+        {isTextEditing && textEditingPosition && canvasRef.current && (
+          <TextInputOverlay
+            position={textEditingPosition}
+            initialText={textEditingAnnotation?.text || ""}
+            fontSize={brushSize * 4} // Scale font size for better visibility
+            fontFamily={"Arial"}
+            color={selectedColor}
+            onComplete={handleTextComplete}
+            onCancel={handleTextCancel}
+            canvasElement={canvasRef.current}
+            onChange={handleTextChange}
+          />
+        )}
       </Flex>
     </Flex>
   )

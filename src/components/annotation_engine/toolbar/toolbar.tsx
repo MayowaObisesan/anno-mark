@@ -3,6 +3,7 @@ import { Flex, Separator, Slider, Text } from "@radix-ui/themes"
 import type { AnnotationEngine } from "~components/annotation_engine/AnnotationEngine"
 import type { ToolConfigSchemaType } from "~components/annotation_engine/engine/Tool"
 import type { ToolType } from "~components/annotation_engine/engine/types"
+import { toolSettingsStore } from "~services/tool-settings-store"
 
 interface ConfigField {
   key: string
@@ -33,12 +34,60 @@ export function Toolbar({
   const schema = engine.getToolSchema(activeTool)
   const [properties, setProperties] = useState(engine.getToolProperties())
 
-  // Update properties when active tool changes
+  // Update properties when active tool changes - load from global store
   useEffect(() => {
-    setProperties(engine.getToolProperties())
+    const loadToolProperties = async () => {
+      try {
+        // Load saved properties from global store for the active tool
+        const savedProperties = await toolSettingsStore.getToolSettings(activeTool)
+
+        // Get current engine properties as fallback
+        const engineProperties = engine.getToolProperties()
+
+        // Merge saved properties with engine properties (saved takes precedence)
+        const mergedProperties = { ...engineProperties, ...savedProperties }
+
+        setProperties(mergedProperties)
+
+        // Update engine with the merged properties to ensure consistency
+        await engine.setToolProperties(mergedProperties)
+      } catch (error) {
+        console.error('Failed to load tool properties:', error)
+        // Fallback to engine properties if global store fails
+        setProperties(engine.getToolProperties())
+      }
+    }
+
+    loadToolProperties()
   }, [activeTool, engine])
 
-  const handleChange = (key: string, value: any) => {
+  // Initialize properties on mount
+  useEffect(() => {
+    const initializeProperties = async () => {
+      try {
+        // Load initial properties from global store
+        const initialProperties = await toolSettingsStore.getToolSettings(activeTool)
+
+        // Get current engine properties as fallback
+        const engineProperties = engine.getToolProperties()
+
+        // Merge and set
+        const mergedProperties = { ...engineProperties, ...initialProperties }
+        setProperties(mergedProperties)
+
+        // Ensure engine is consistent
+        await engine.setToolProperties(mergedProperties)
+      } catch (error) {
+        console.error('Failed to initialize tool properties:', error)
+        // Fallback to engine properties
+        setProperties(engine.getToolProperties())
+      }
+    }
+
+    initializeProperties()
+  }, []) // Only run once on mount
+
+  const handleChange = async (key: string, value: any) => {
     let newProperties = { ...properties, [key]: value }
 
     // If changing stroke color, also update fill color with alpha
@@ -52,7 +101,9 @@ export function Toolbar({
     }
 
     setProperties(newProperties)
-    engine.setToolProperties(newProperties)
+
+    // Save to global store and update engine
+    await engine.setToolProperties(newProperties)
   }
 
   const renderInput = (field: ConfigField) => {
@@ -87,9 +138,9 @@ export function Toolbar({
           <Flex align={"center"} gap={"2"}>
             <Slider
               className={"w-32"}
-              defaultValue={[value]}
-              min={field.min || 1}
-              max={field.max || 10}
+              value={[value]}
+              min={field.min || 10}
+              max={field.max || 64}
               step={1}
               size={"3"}
               onValueChange={(sliderValue) => handleChange(field.key, sliderValue[0])}
