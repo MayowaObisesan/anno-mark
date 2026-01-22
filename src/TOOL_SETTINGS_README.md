@@ -188,12 +188,24 @@ await engine.setTool('text') // Loads text tool settings
 
 ### 2. Toolbar Integration
 
-The toolbar component automatically persists changes:
+The toolbar component now fully integrates with global store:
 
 ```typescript
 // All toolbar changes persist immediately
 <Toolbar engine={engine} activeTool={selectedTool} />
+
+// Toolbar automatically loads saved properties when switching tools:
+// - Select Text tool → loads saved text properties (fontSize, fontFamily, etc.)
+// - Select Rectangle tool → loads saved rectangle properties (strokeWidth, fill, etc.)
+// - Select Arrow tool → loads saved arrow properties (strokeWidth, etc.)
 ```
+
+**Key Features:**
+- **Automatic Loading**: When user switches tools, toolbar loads that tool's saved properties
+- **Instant Persistence**: Any property change saves immediately to global store
+- **Cross-Session Memory**: Settings persist between browser sessions
+- **Error Handling**: Graceful fallbacks if global store fails
+- **Real-time Sync**: Toolbar and engine stay synchronized
 
 ### 3. React Hook Example
 

@@ -133,7 +133,7 @@ export const TextInputOverlay: React.FC<TextInputOverlayProps> = ({
         left: overlayPosition.x,
         top: overlayPosition.y,
         zIndex: 1000,
-        background: convertHexToRgba(textColor),
+        background: convertHexToRgba(textColor, 0.7),
         border: `2px solid ${textColor}`,
         borderRadius: '4px',
         padding: '8px',
