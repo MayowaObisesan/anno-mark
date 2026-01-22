@@ -10,6 +10,7 @@ import { getBounds } from './engine/bounds'
 import { getHandles, hitHandle, drawHandles } from './engine/handles'
 import { moveAnnotation, resizeAnnotation } from './engine/transform'
 import { toolSettingsStore } from "~services/tool-settings-store"
+import { HistoryStack } from "~components/annotation_engine/engine/history"
 
 export class AnnotationEngine {
   private readonly ctx: CanvasRenderingContext2D
@@ -51,6 +52,10 @@ export class AnnotationEngine {
   private onAnnotationModified?: () => void
   private onPreviewUpdate?: () => void
   private onTextEditingChanged?: (isEditing: boolean) => void
+  private onHistoryStateChanged?: () => void
+
+  // Add History State
+  private history = new HistoryStack()
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
@@ -67,6 +72,14 @@ export class AnnotationEngine {
       text: new TextTool()
     }
 
+    // History initial state
+    this.history.push(this.annotations)
+    
+    // Set up history change callback
+    this.history.setOnChangeCallback(() => {
+      this.onHistoryStateChanged?.()
+    })
+
     this.bindEvents()
     this.initializeToolSettings()
   }
@@ -74,10 +87,10 @@ export class AnnotationEngine {
   private async initializeToolSettings() {
     // Initialize the tool settings store
     await toolSettingsStore.initialize()
-    
+
     // Load current tool's settings
     await this.loadCurrentToolSettings()
-    
+
     // Set up listener for settings changes
     toolSettingsStore.onPropertyChanged(async (toolType, propertyKey, newValue) => {
       if (toolType === this.activeTool) {
@@ -99,14 +112,14 @@ export class AnnotationEngine {
 
   async setToolProperties(properties: Record<string, any>) {
     this.toolProperties = { ...this.toolProperties, ...properties }
-    
+
     // Save to global store
     await toolSettingsStore.setToolSettings(this.activeTool, this.toolProperties)
   }
 
   async setToolProperty(key: string, value: any) {
     this.toolProperties[key] = value
-    
+
     // Save to global store
     await toolSettingsStore.setProperty(this.activeTool, key, value)
   }
@@ -127,16 +140,18 @@ export class AnnotationEngine {
     this.backgroundImage = image
   }
 
-  setEventCallbacks(callbacks: { 
-    onAnnotationAdded?: () => void; 
+  setEventCallbacks(callbacks: {
+    onAnnotationAdded?: () => void;
     onAnnotationModified?: () => void;
     onPreviewUpdate?: () => void;
     onTextEditingChanged?: (isEditing: boolean) => void;
+    onHistoryStateChanged?: () => void;
   }) {
     this.onAnnotationAdded = callbacks.onAnnotationAdded
     this.onAnnotationModified = callbacks.onAnnotationModified
     this.onPreviewUpdate = callbacks.onPreviewUpdate
     this.onTextEditingChanged = callbacks.onTextEditingChanged
+    this.onHistoryStateChanged = callbacks.onHistoryStateChanged
   }
 
   private bindEvents() {
@@ -159,7 +174,7 @@ export class AnnotationEngine {
   private startDrawing(p: Point) {
     this.isDrawing = true
     this.drawingState = this.tools[this.activeTool].onPointerDown(p)
-    
+
     // Create initial preview with current tool properties
     this.updatePreview()
   }
@@ -190,7 +205,7 @@ export class AnnotationEngine {
 
     this.isDrawing = false
     const annotation = this.tools[this.activeTool].onPointerUp(p, this.drawingState)
-    
+
     this.currentPreview = null
     this.drawingState = null
 
@@ -199,6 +214,20 @@ export class AnnotationEngine {
 
   private onDown = (e: PointerEvent) => {
     const p = this.getPoint(e)
+
+    // Handle Keyboard shortcuts for undo/redo
+    /*if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+      e.preventDefault()
+      this.undo()
+    }
+
+    if (
+      (e.metaKey || e.ctrlKey) &&
+      (e.key === 'y' || (e.shiftKey && e.key === 'Z'))
+    ) {
+      e.preventDefault()
+      this.redo()
+    }*/
 
     // Handle text editing mode differently
     if (this.activeTool === "text" && this.isTextEditing) {
@@ -280,6 +309,7 @@ export class AnnotationEngine {
     if (this.selection.annotation) {
       this.selection = { annotation: null, handle: null, startPoint: null, original: null }
       this.onAnnotationModified?.()
+      this.history.push(this.annotations)
       return
     }
 
@@ -298,6 +328,7 @@ export class AnnotationEngine {
         }
         this.annotations.push(annotationWithProperties)
         this.onAnnotationAdded?.()
+        this.history.push(this.annotations)
       }
     } else {
       // Fallback for tools that don't use preview system yet
@@ -313,9 +344,10 @@ export class AnnotationEngine {
         }
         this.annotations.push(annotationWithProperties)
         this.onAnnotationAdded?.()
+        this.history.push(this.annotations)
       }
     }
-    
+
     this.redraw()
   }
 
@@ -347,7 +379,7 @@ export class AnnotationEngine {
   // Text editing methods
   startTextEditing(position: Point, annotation?: any) {
     const textTool = this.tools.text as TextTool
-    
+
     if (textTool.startTextEditing(position, annotation)) {
       this.isTextEditing = true
       this.textEditingPosition = position
@@ -359,7 +391,7 @@ export class AnnotationEngine {
   finishTextEditing(text: string) {
     const textTool = this.tools.text as TextTool
     const annotation = textTool.finishTextEditing(text)
-    
+
     if (annotation) {
       if (textTool.getEditingAnnotation()) {
         // Update existing annotation
@@ -376,6 +408,7 @@ export class AnnotationEngine {
           }
           this.annotations[index] = annotationWithProperties
           this.onAnnotationModified?.()
+          this.history.push(this.annotations)
         }
       } else {
         // Add new annotation
@@ -389,6 +422,7 @@ export class AnnotationEngine {
         }
         this.annotations.push(annotationWithProperties)
         this.onAnnotationAdded?.()
+        this.history.push(this.annotations)
       }
     }
 
@@ -398,7 +432,7 @@ export class AnnotationEngine {
   cancelTextEditing() {
     const textTool = this.tools.text as TextTool
     textTool.cancelTextEditing()
-    
+
     this.isTextEditing = false
     this.textEditingPosition = null
     this.textEditingAnnotation = null
@@ -409,14 +443,14 @@ export class AnnotationEngine {
   updateTextPreview(text: string) {
     const textTool = this.tools.text as TextTool
     textTool.updatePreviewText(text)
-    
+
     // Update preview for real-time feedback
     if (this.isTextEditing && this.textEditingPosition) {
       const previewAnnotation = textTool.getPreview({
         position: this.textEditingPosition,
         text: text
       })
-      
+
       if (previewAnnotation) {
         this.currentPreview = {
           ...previewAnnotation,
@@ -427,7 +461,7 @@ export class AnnotationEngine {
           fontFamily: this.toolProperties.fontFamily,
         }
       }
-      
+
       this.redraw()
     }
   }
@@ -442,6 +476,8 @@ export class AnnotationEngine {
 
   load(json: string) {
     this.annotations = JSON.parse(json)
+    this.history.clear()
+    this.history.push(this.annotations)
     this.redraw()
   }
 
@@ -466,4 +502,30 @@ export class AnnotationEngine {
   getTextEditingAnnotation(): any {
     return this.textEditingAnnotation
   }
+
+  // History methods
+  undo() {
+    const prev = this.history.undo(this.annotations)
+    if (prev) {
+      this.annotations = prev
+      this.redraw()
+    }
+  }
+
+  redo() {
+    const next = this.history.redo(this.annotations)
+    if (next) {
+      this.annotations = next
+      this.redraw()
+    }
+  }
+
+  canUndo(): boolean {
+    return this.history.canUndo()
+  }
+
+  canRedo(): boolean {
+    return this.history.canRedo()
+  }
+
 }
