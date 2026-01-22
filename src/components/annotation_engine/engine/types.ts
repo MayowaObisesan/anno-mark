@@ -4,6 +4,8 @@ export type Point = {
 }
 
 export type ToolType = "arrow" | "rectangle" | "ellipse" | "freehand" | "text"
+export type ToolPropertyKey = "stroke" | "strokeWidth" | "fill" | "fontSize" | "fontFamily"
+export type ToolPropertyValue = "color" | "number" | "text"
 
 export type AnnotationBase = {
   id: string

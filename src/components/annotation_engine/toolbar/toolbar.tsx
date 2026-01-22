@@ -3,6 +3,7 @@ import { Flex, Separator, Slider, Text } from "@radix-ui/themes"
 import type { AnnotationEngine } from "~components/annotation_engine/AnnotationEngine"
 import type { ToolConfigSchemaType } from "~components/annotation_engine/engine/Tool"
 import type { ToolType } from "~components/annotation_engine/engine/types"
+import { toolSettingsStore } from "~services/tool-settings-store"
 
 interface ConfigField {
   key: string
@@ -38,7 +39,7 @@ export function Toolbar({
     setProperties(engine.getToolProperties())
   }, [activeTool, engine])
 
-  const handleChange = (key: string, value: any) => {
+  const handleChange = async (key: string, value: any) => {
     let newProperties = { ...properties, [key]: value }
 
     // If changing stroke color, also update fill color with alpha
@@ -52,7 +53,9 @@ export function Toolbar({
     }
 
     setProperties(newProperties)
-    engine.setToolProperties(newProperties)
+    
+    // Save to global store and update engine
+    await engine.setToolProperties(newProperties)
   }
 
   const renderInput = (field: ConfigField) => {

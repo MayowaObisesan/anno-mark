@@ -1,5 +1,7 @@
 // Settings schema for the extension
 
+import type { ToolSettings } from "./tool-settings"
+
 export interface AnnotationSettings {
   color: string
   size: number
@@ -19,6 +21,7 @@ export interface CaptureSettings {
 export interface AppSettings {
   annotation: AnnotationSettings
   capture: CaptureSettings
+  toolSettings?: ToolSettings
   showOnboarding: boolean
   keyboardShortcuts: boolean
 }

@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState, useCallback } from "react"
 import type { Point } from "~components/annotation_engine/engine/types"
+import { convertHexToRgba, type HexString } from "~components/annotation_engine/engine/utils"
+import { toolSettingsStore } from "~services/tool-settings-store"
 
 interface TextInputOverlayProps {
   position: Point
   initialText?: string
   fontSize: number
   fontFamily: string
-  color: string
+  color: HexString | string
   onComplete: (text: string) => void
   onCancel: () => void
   canvasElement: HTMLCanvasElement
@@ -28,6 +30,8 @@ export const TextInputOverlay: React.FC<TextInputOverlayProps> = ({
   const [text, setText] = useState(initialText)
   const [overlayPosition, setOverlayPosition] = useState({ x: 0, y: 0 })
   const [isAutoResizing, setIsAutoResizing] = useState(false)
+  const textColor = toolSettingsStore.getPropertySync('text', 'stroke')
+  const textSize = toolSettingsStore.getPropertySync('text', 'fontSize')
 
   // Calculate overlay position based on canvas coordinates
   const calculateOverlayPosition = useCallback(() => {
@@ -129,8 +133,8 @@ export const TextInputOverlay: React.FC<TextInputOverlayProps> = ({
         left: overlayPosition.x,
         top: overlayPosition.y,
         zIndex: 1000,
-        background: 'white',
-        border: `2px solid ${color}`,
+        background: convertHexToRgba(textColor),
+        border: `2px solid ${textColor}`,
         borderRadius: '4px',
         padding: '8px',
         boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
@@ -148,8 +152,8 @@ export const TextInputOverlay: React.FC<TextInputOverlayProps> = ({
           outline: 'none',
           resize: 'none',
           fontFamily: fontFamily,
-          fontSize: `${fontSize}px`,
-          color: color,
+          fontSize: `${textSize}px`,
+          color: textColor,
           background: 'transparent',
           width: '100%',
           minWidth: '100px',
@@ -163,3 +167,8 @@ export const TextInputOverlay: React.FC<TextInputOverlayProps> = ({
     </div>
   )
 }
+
+/*The new text canvas implementation works, but there are few fixes to be made.
+1. The text canvas doesn't respect the selected color for it's stroke and fill as other tools do.
+  2. A saved text cannot be dragged, it can only be clicked to re-edit and once clicked,
+  3. the current color is applied irrespective of whether that was the color set when the text was created.*/

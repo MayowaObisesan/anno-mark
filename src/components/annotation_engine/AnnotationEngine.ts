@@ -9,6 +9,7 @@ import type { SelectionState } from './engine/selection'
 import { getBounds } from './engine/bounds'
 import { getHandles, hitHandle, drawHandles } from './engine/handles'
 import { moveAnnotation, resizeAnnotation } from './engine/transform'
+import { toolSettingsStore } from "~services/tool-settings-store"
 
 export class AnnotationEngine {
   private readonly ctx: CanvasRenderingContext2D
@@ -67,10 +68,47 @@ export class AnnotationEngine {
     }
 
     this.bindEvents()
+    this.initializeToolSettings()
   }
 
-  setTool(tool: ToolType) {
+  private async initializeToolSettings() {
+    // Initialize the tool settings store
+    await toolSettingsStore.initialize()
+    
+    // Load current tool's settings
+    await this.loadCurrentToolSettings()
+    
+    // Set up listener for settings changes
+    toolSettingsStore.onPropertyChanged(async (toolType, propertyKey, newValue) => {
+      if (toolType === this.activeTool) {
+        this.toolProperties[propertyKey] = newValue
+        this.redraw()
+      }
+    })
+  }
+
+  private async loadCurrentToolSettings() {
+    const toolSettings = await toolSettingsStore.getToolSettings(this.activeTool)
+    this.toolProperties = { ...this.toolProperties, ...toolSettings }
+  }
+
+  async setTool(tool: ToolType) {
     this.activeTool = tool
+    await this.loadCurrentToolSettings()
+  }
+
+  async setToolProperties(properties: Record<string, any>) {
+    this.toolProperties = { ...this.toolProperties, ...properties }
+    
+    // Save to global store
+    await toolSettingsStore.setToolSettings(this.activeTool, this.toolProperties)
+  }
+
+  async setToolProperty(key: string, value: any) {
+    this.toolProperties[key] = value
+    
+    // Save to global store
+    await toolSettingsStore.setProperty(this.activeTool, key, value)
   }
 
   getActiveTool() {
@@ -79,10 +117,6 @@ export class AnnotationEngine {
 
   getToolSchema(tool: ToolType) {
     return this.tools[tool].getConfigSchema()
-  }
-
-  setToolProperties(properties: Record<string, any>) {
-    this.toolProperties = { ...this.toolProperties, ...properties }
   }
 
   getToolProperties() {

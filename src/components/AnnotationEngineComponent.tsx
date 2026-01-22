@@ -146,8 +146,9 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
         stroke: selectedColor,
         strokeWidth: brushSize,
         fill: selectedColor+22
+      }).then(() => {
+        engineRef.current?.redraw()
       })
-      engineRef.current.redraw()
     }
   }, [selectedColor, brushSize])
 
