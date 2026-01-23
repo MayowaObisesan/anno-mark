@@ -73,6 +73,15 @@ function IndexPopup() {
             )}
           </Button>
 
+          <Button
+            size="2"
+            variant="soft"
+            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL('tabs/gallery.html') })}
+            style={{ marginTop: 4 }}
+          >
+            My Annotations
+          </Button>
+
           <Text size="1" color="gray" align="center">
             Click to capture the entire page and open the annotation editor
           </Text>
