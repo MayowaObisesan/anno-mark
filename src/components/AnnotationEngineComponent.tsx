@@ -43,24 +43,21 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
   const [selectedTool, setSelectedTool] = useState<ToolType>("arrow")
   const [selectedColor, setSelectedColor] = useState<string>("#ff0000")
   const [brushSize, setBrushSize] = useState<number>(4)
-  const [history, setHistory] = useState<string[]>([""])
-  const [historyIndex, setHistoryIndex] = useState<number>(0)
+  const [canUndo, setCanUndo] = useState<boolean>(false)
+  const [canRedo, setCanRedo] = useState<boolean>(false)
 
   // Text editing state
   const [isTextEditing, setIsTextEditing] = useState<boolean>(false)
   const [textEditingPosition, setTextEditingPosition] = useState<{ x: number; y: number } | null>(null)
   const [textEditingAnnotation, setTextEditingAnnotation] = useState<any>(null)
 
-  const saveToHistory = useCallback(() => {
-    if (!engineRef.current) return
-
-    const currentState = engineRef.current.serialize()
-    const newHistory = history.slice(0, historyIndex + 1)
-    newHistory.push(currentState)
-
-    setHistory(newHistory)
-    setHistoryIndex(newHistory.length - 1)
-  }, [history, historyIndex])
+  // Update history state from engine
+  const updateHistoryState = useCallback(() => {
+    if (engineRef.current) {
+      setCanUndo(engineRef.current.canUndo())
+      setCanRedo(engineRef.current.canRedo())
+    }
+  }, [])
 
   // Initialize engine and load image
   useEffect(() => {
@@ -75,8 +72,12 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
 
     // Set up event callbacks for automatic history saving and text editing
     engine.setEventCallbacks({
-      onAnnotationAdded: saveToHistory,
-      onAnnotationModified: saveToHistory,
+      onAnnotationAdded: () => {
+        updateHistoryState()
+      },
+      onAnnotationModified: () => {
+        updateHistoryState()
+      },
       onPreviewUpdate: () => {
         // Force a re-render when preview updates
         // The canvas will be redrawn by the engine itself
@@ -87,6 +88,9 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
           setTextEditingPosition(null)
           setTextEditingAnnotation(null)
         }
+      },
+      onHistoryStateChanged: () => {
+        updateHistoryState()
       }
     })
 
@@ -96,13 +100,15 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
       imageRef.current = img
       engine.setBackgroundImage(img)
       engine.redraw()
+      // Initialize history state after engine is ready
+      updateHistoryState()
     }
     img.src = imageData
 
     return () => {
       // Cleanup if needed
     }
-  }, [imageData, width, height])
+  }, [imageData, width, height, updateHistoryState])
 
   // Handle text editing position updates from engine
   useEffect(() => {
@@ -153,20 +159,16 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
   }, [selectedColor, brushSize])
 
   const undo = useCallback(() => {
-    if (historyIndex > 0 && engineRef.current) {
-      const newIndex = historyIndex - 1
-      setHistoryIndex(newIndex)
-      engineRef.current.load(history[newIndex])
+    if (engineRef.current) {
+      engineRef.current.undo()
     }
-  }, [history, historyIndex])
+  }, [])
 
   const redo = useCallback(() => {
-    if (historyIndex < history.length - 1 && engineRef.current) {
-      const newIndex = historyIndex + 1
-      setHistoryIndex(newIndex)
-      engineRef.current.load(history[newIndex])
+    if (engineRef.current) {
+      engineRef.current.redo()
     }
-  }, [history, historyIndex])
+  }, [])
 
   const exportImage = useCallback(() => {
     if (!engineRef.current) return
@@ -309,7 +311,7 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
               size="1"
               variant="soft"
               onClick={undo}
-              disabled={historyIndex <= 0}
+              disabled={!canUndo}
             >
               <LucideUndo size={14} strokeWidth={2} /> Undo
             </Button>
@@ -317,7 +319,7 @@ const AnnotationEngineComponent: React.FC<AnnotationEngineProps> = ({
               size="1"
               variant="soft"
               onClick={redo}
-              disabled={historyIndex >= history.length - 1}
+              disabled={!canRedo}
             >
               <LucideRedo size={14} strokeWidth={2} /> Redo
             </Button>
