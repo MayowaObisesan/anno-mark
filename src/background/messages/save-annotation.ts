@@ -1,17 +1,18 @@
 import type { PlasmoMessaging } from "@plasmohq/messaging"
 import { storageService } from "~services/storage"
-import { dualStorageService } from "~services/dual-storage"
+import { dexieStorageService } from "~services/dexie-storage"
 
 const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
   try {
     const { dataUrl, width, height, url, title, timestamp } = req.body
 
-    // Initialize dual storage service
-    await dualStorageService.initialize()
+    // Initialize Dexie if not already done
+    await dexieStorageService.initialize()
 
-    // Save the annotation with dual storage support
-    const annotationId = await dualStorageService.saveAnnotation({
+    // Save the full annotation to Dexie
+    const annotationId = await dexieStorageService.saveAnnotation({
       dataUrl,
+      fileSize: 0,
       width: width || 0,
       height: height || 0,
       timestamp: timestamp || Date.now(),
@@ -19,12 +20,7 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
       title: title || `Annotation ${new Date().toLocaleString()}`,
       tags: [], // Default empty tags for now
       description: '',
-      mimeType: 'image/png',
-      fileSize: 0 // Will be calculated in the service
-    }, {
-      generateThumbnail: true, // Generate thumbnail for mobile-first experience
-      uploadToCloud: true, // Upload to cloud if credentials are available
-      syncStatus: 'pending' // Start with pending sync status
+      mimeType: 'image/png'
     })
 
     // Also save metadata to existing storage for backward compatibility
@@ -36,13 +32,13 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
       title: title || ''
     })
 
-    console.log('Annotation saved successfully with dual storage:', annotationId)
+    console.log('Annotation saved successfully with ID:', annotationId)
 
     res.send({
       type: 'ANNOTATION_SAVED',
       data: {
         id: annotationId,
-        message: 'Annotation saved successfully with cloud storage enabled'
+        message: 'Annotation saved successfully'
       }
     })
   } catch (error) {

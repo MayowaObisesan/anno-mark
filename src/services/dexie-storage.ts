@@ -6,7 +6,6 @@
 import { Dexie, type Table } from "dexie"
 
 import type { QueryOptions, SearchQuery, StorageInfo, StoredAnnotation, Tag } from './indexeddb-storage';
-import type { StoredAnnotationV2, SyncStatus } from "~types/annotations-v2";
 
 // Extended interfaces for Dexie relationships
 export interface AnnotationTag {
@@ -16,15 +15,9 @@ export interface AnnotationTag {
   createdAt: Date
 }
 
-// V2 Annotation interface with dual storage support
-export interface DexieAnnotationV2 extends StoredAnnotationV2 {
-  // Dexie-specific fields are inherited from StoredAnnotationV2
-}
-
 // Database setup with proper typing
 const db = new Dexie('AnnoMarkDB') as Dexie & {
   annotations: Table<StoredAnnotation, string>
-  annotationsV2: Table<DexieAnnotationV2, string>
   tags: Table<Tag, string>
   annotationTags: Table<AnnotationTag, number>
 }
@@ -34,50 +27,6 @@ db.version(1).stores({
   annotations: '&id, dataUrl, width, height, timestamp, url, title, createdAt, updatedAt, fileSize, mimeType, *tags',
   tags: '&id, name, color, count, createdAt',
   annotationTags: '++id, annotationId, tagId, [annotationId+tagId]'
-})
-
-// Add migration for future versions
-db.version(2).stores({
-  annotations: '&id, dataUrl, width, height, timestamp, url, title, createdAt, updatedAt, fileSize, mimeType, *tags',
-  tags: '&id, name, color, count, createdAt',
-  annotationTags: '++id, annotationId, tagId, [annotationId+tagId]'
-}).upgrade(tx => {
-  // Migration logic from version 1 to 2 can be added here
-  console.log('Migrating database from version 1 to 2')
-})
-
-// V2 with dual storage support
-db.version(3).stores({
-  annotationsV2: '&id, dataUrl, thumbnailUrl, imagekitUrl, imagekitFileId, imagekitThumbnailUrl, width, height, timestamp, url, title, createdAt, updatedAt, fileSize, thumbnailSize, mimeType, syncStatus, *tags',
-  tags: '&id, name, color, count, createdAt',
-  annotationTags: '++id, annotationId, tagId, [annotationId+tagId]'
-}).upgrade(tx => {
-  // Migration from v1/v2 to v3 with dual storage
-  console.log('Migrating database to v3 with dual storage support')
-
-  // Migrate existing annotations to v2 format
-  return tx.table('annotations').toCollection().each(oldAnnotation => {
-    const v2Annotation: DexieAnnotationV2 = {
-      ...oldAnnotation,
-      thumbnailUrl: undefined, // Will be generated later
-      imagekitUrl: undefined,
-      imagekitFileId: undefined,
-      imagekitThumbnailUrl: undefined,
-      thumbnailSize: undefined,
-      syncStatus: 'local-only' as SyncStatus,
-      metadata: {
-        version: '1.0.0',
-        migratedFrom: 'v1'
-      }
-    }
-
-    // Add to annotationsV2 table
-    return tx.table('annotationsV2').add(v2Annotation)
-  }).then(() => {
-    console.log('Successfully migrated annotations to v2 format')
-  }).catch(error => {
-    console.error('Failed to migrate annotations:', error)
-  })
 })
 
 class DexieStorageService {

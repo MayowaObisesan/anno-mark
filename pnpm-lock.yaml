@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@imagekit/javascript':
-        specifier: ^5.2.0
-        version: 5.2.0
       '@plasmohq/messaging':
         specifier: ^0.7.2
         version: 0.7.2(react@18.2.0)
@@ -313,9 +310,6 @@ packages:
     peerDependenciesMeta:
       '@vue/compiler-sfc':
         optional: true
-
-  '@imagekit/javascript@5.2.0':
-    resolution: {integrity: sha512-0vLzH5M6xwlUsO0GxuRAmjHTZWwjFD/YhIKbsUTlXHoAtf72Sa3YaTU4KpnVRntiWpADh7eQ3Azp9Pu8FHv6Ng==}
 
   '@img/sharp-darwin-arm64@0.33.5':
     resolution: {integrity: sha512-UT4p+iz/2H4twwAoLCqfA9UH5pI6DggwKEGuaPy7nCVQ8ZsiY5PIcrRvD1DzuY3qYL07NtIQcWnBSY/heikIFQ==}
@@ -4193,8 +4187,6 @@ snapshots:
       '@vue/compiler-sfc': 3.3.4
     transitivePeerDependencies:
       - supports-color
-
-  '@imagekit/javascript@5.2.0': {}
 
   '@img/sharp-darwin-arm64@0.33.5':
     optionalDependencies:
