@@ -1,10 +1,10 @@
 import type { PlasmoMessaging } from "@plasmohq/messaging"
-import { dexieStorageService } from "~services/dexie-storage"
+import { dualStorageService } from "~services/dual-storage"
 
 const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
   try {
-    // Initialize Dexie if not already done
-    await dexieStorageService.initialize()
+    // Initialize dual storage service
+    await dualStorageService.initialize()
     
     const { type, limit, offset, sortBy, sortOrder, query } = req.body
     
@@ -12,11 +12,11 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
     
     switch (type) {
       case 'recent':
-        annotations = await dexieStorageService.getRecentAnnotations(limit || 10)
+        annotations = await dualStorageService.getAllAnnotations({ limit: limit || 10 })
         break
         
       case 'all':
-        annotations = await dexieStorageService.getAllAnnotations({
+        annotations = await dualStorageService.getAllAnnotations({
           limit,
           offset,
           sortBy: sortBy || 'createdAt',
@@ -25,7 +25,7 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
         break
         
       case 'search':
-        annotations = await dexieStorageService.searchAnnotations(query || {})
+        annotations = await dualStorageService.searchAnnotations(query || {})
         break
         
       case 'byTag':
@@ -33,7 +33,7 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
         if (!tag) {
           throw new Error('Tag parameter is required for byTag query')
         }
-        annotations = await dexieStorageService.getAnnotationsByTag(tag)
+        annotations = await dualStorageService.getAllAnnotations({ tags: [tag] })
         break
         
       case 'single':
@@ -41,16 +41,16 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
         if (!id) {
           throw new Error('ID parameter is required for single query')
         }
-        const annotation = await dexieStorageService.getAnnotation(id)
+        const annotation = await dualStorageService.getAnnotation(id)
         annotations = annotation ? [annotation] : []
         break
         
       default:
-        annotations = await dexieStorageService.getRecentAnnotations(10)
+        annotations = await dualStorageService.getAllAnnotations({ limit: 10 })
     }
     
     // Get storage info
-    const storageInfo = await dexieStorageService.getStorageInfo()
+    const storageInfo = await dualStorageService.getCloudStorageStats()
     
     res.send({ 
       type: 'ANNOTATIONS_RETRIEVED',

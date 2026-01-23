@@ -1,10 +1,10 @@
 import type { PlasmoMessaging } from "@plasmohq/messaging"
-import { dexieStorageService } from "~services/dexie-storage"
+import { dualStorageService } from "~services/dual-storage"
 
 const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
   try {
-    // Initialize Dexie if not already done
-    await dexieStorageService.initialize()
+    // Initialize dual storage service
+    await dualStorageService.initialize()
     
     const { id } = req.body
     
@@ -12,7 +12,7 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
       throw new Error('Annotation ID is required for deletion')
     }
     
-    await dexieStorageService.deleteAnnotation(id)
+    await dualStorageService.deleteAnnotation(id)
     
     console.log('Annotation deleted successfully:', id)
     
