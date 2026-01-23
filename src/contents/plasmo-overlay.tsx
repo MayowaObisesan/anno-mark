@@ -111,10 +111,17 @@ const PlasmoOverlay = () => {
   }
 
   const handleExport = (dataUrl: string) => {
-    // Save to storage
+    // Save to storage with full metadata
     sendToBackground({
       name: 'save-annotation',
-      body: { dataUrl }
+      body: { 
+        dataUrl,
+        width: imageWidth,
+        height: imageHeight,
+        url: window.location.href,
+        title: document.title,
+        timestamp: Date.now()
+      }
     })
 
     // Hide editor
