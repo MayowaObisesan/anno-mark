@@ -10,6 +10,9 @@
     "package": "plasmo package"
   },
   "dependencies": {
+    "@clerk/chrome-extension": "^2.8.20",
+    "@imagekit/javascript": "^5.2.0",
+    "@imagekit/nodejs": "^7.2.1",
     "@plasmohq/messaging": "^0.7.2",
     "@plasmohq/storage": "^1.15.0",
     "@radix-ui/themes": "^3.2.1",
@@ -33,6 +36,7 @@
     "typescript": "5.3.3"
   },
   "manifest": {
+    "key": "$CRX_PUBLIC_KEY",
     "host_permissions": [
       "<all_urls>"
     ],
@@ -40,7 +44,8 @@
       "activeTab",
       "scripting",
       "storage",
-      "tabs"
+      "tabs",
+      "cookies"
     ]
   },
   "packageManager": "pnpm@10.15.0+sha512.486ebc259d3e999a4e8691ce03b5cac4a71cbeca39372a9b762cb500cfdf0873e2cb16abe3d951b1ee2cf012503f027b98b6584e4df22524e0c7450d9ec7aa7b"

@@ -1,4 +1,4 @@
-import { LucideX } from "lucide-react"
+import { LucideCamera, LucideX } from "lucide-react"
 
 import {
   Button,
@@ -114,7 +114,7 @@ const PlasmoOverlay = () => {
     // Save to storage with full metadata
     sendToBackground({
       name: 'save-annotation',
-      body: { 
+      body: {
         dataUrl,
         width: imageWidth,
         height: imageHeight,
@@ -135,7 +135,9 @@ const PlasmoOverlay = () => {
         className={`anno-mark-floating-button ${isCapturing ? 'capturing' : ''}`}
         onClick={handleStartCapture}
         title="Capture and Annotate"
-      />
+      >
+        <LucideCamera size={24} strokeWidth={2} />
+      </button>
 
       {/* Editor Overlay */}
       {showEditor && (
