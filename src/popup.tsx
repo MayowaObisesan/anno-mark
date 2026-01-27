@@ -1,8 +1,22 @@
+import { ClerkProvider,
+  SignInButton,
+  SignUpButton,
+  SignedIn,
+  SignedOut,
+  UserButton,
+} from '@clerk/chrome-extension'
 import { Button, Flex, Text, Theme, Spinner } from "@radix-ui/themes"
 import { useState } from "react"
 import './globals.css'
 import { sendToBackground } from "@plasmohq/messaging"
 import type { StartCaptureMessage } from "~types/messages"
+
+const PUBLISHABLE_KEY = process.env.PLASMO_PUBLIC_CLERK_PUBLISHABLE_KEY
+const EXTENSION_URL = chrome.runtime.getURL('.')
+
+if (!PUBLISHABLE_KEY) {
+  throw new Error('Please add the PLASMO_PUBLIC_CLERK_PUBLISHABLE_KEY to the .env.development file')
+}
 
 function IndexPopup() {
   const [isCapturing, setIsCapturing] = useState(false)
@@ -42,51 +56,69 @@ function IndexPopup() {
 
   return (
     <Theme accentColor="crimson" grayColor="sand" radius="large" scaling="95%" className={"dark"}>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          padding: 16,
-          width: 320,
-        }}>
-        <Flex direction="column" gap="4">
-          <Text size="4" weight="bold" align="center">
-            Anno-Mark
-          </Text>
-          <Text size="2" color="gray" align="center">
-            Capture and annotate full-page screenshots
-          </Text>
+      <ClerkProvider
+        publishableKey={PUBLISHABLE_KEY}
+        afterSignOutUrl={`${EXTENSION_URL}/popup.html`}
+        signInFallbackRedirectUrl={`${EXTENSION_URL}/popup.html`}
+        signUpFallbackRedirectUrl={`${EXTENSION_URL}/popup.html`}
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            padding: 16,
+            width: 320,
+          }}>
+          <header className="plasmo-w-full">
+            {/* Show the sign-in and sign-up buttons when the user is signed out */}
+            <SignedOut>
+              <SignInButton mode="modal" />
+              <SignUpButton mode="modal" />
+            </SignedOut>
+            {/* Show the user button when the user is signed in */}
+            <SignedIn>
+              <UserButton />
+            </SignedIn>
+          </header>
+          <Flex direction="column" gap="4">
+            <Text size="4" weight="bold" align="center">
+              Anno-Mark
+            </Text>
+            <Text size="2" color="gray" align="center">
+              Capture and annotate full-page screenshots
+            </Text>
 
-          <Button
-            size="3"
-            onClick={handleStartCapture}
-            disabled={isCapturing}
-            style={{ marginTop: 8 }}
-          >
-            {isCapturing ? (
-              <>
-                <Spinner size="2" />
-                <span style={{ marginLeft: 8 }}>Capturing...</span>
-              </>
-            ) : (
-              "Capture Full Page"
-            )}
-          </Button>
+            <Button
+              size="3"
+              onClick={handleStartCapture}
+              disabled={isCapturing}
+              style={{ marginTop: 8 }}
+            >
+              {isCapturing ? (
+                <>
+                  <Spinner size="2" />
+                  <span style={{ marginLeft: 8 }}>Capturing...</span>
+                </>
+              ) : (
+                "Capture Full Page"
+              )}
+            </Button>
 
-          <Button
-            size="2"
-            variant="soft"
-            onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL('tabs/gallery.html') })}
-            style={{ marginTop: 4 }}
-          >
-            My Annotations
-          </Button>
+            <Button
+              size="2"
+              variant="soft"
+              onClick={() => chrome.tabs.create({ url: chrome.runtime.getURL('tabs/gallery.html') })}
+              style={{ marginTop: 4 }}
+            >
+              My Annotations
+            </Button>
 
-          <Text size="1" color="gray" align="center">
-            Click to capture the entire page and open the annotation editor
-          </Text>
-        </Flex>
-      </div>
+            <Text size="1" color="gray" align="center">
+              Click to capture the entire page and open the annotation editor
+            </Text>
+          </Flex>
+        </div>
+      </ClerkProvider>
     </Theme>
   )
 }
