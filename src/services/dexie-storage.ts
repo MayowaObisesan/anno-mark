@@ -24,19 +24,9 @@ const db = new Dexie('AnnoMarkDB') as Dexie & {
 
 // Database versioning with migration support
 db.version(1).stores({
-  annotations: '&id, dataUrl, width, height, timestamp, url, title, createdAt, updatedAt, fileSize, mimeType, *tags',
+  annotations: '&id, dataUrl, thumbnailUrl, width, height, timestamp, url, title, createdAt, updatedAt, fileSize, mimeType, *tags, imageKitFileId, imageKitUrl, imageKitThumbnailUrl, isUploaded',
   tags: '&id, name, color, count, createdAt',
   annotationTags: '++id, annotationId, tagId, [annotationId+tagId]'
-})
-
-// Add migration for future versions
-db.version(2).stores({
-  annotations: '&id, dataUrl, width, height, timestamp, url, title, createdAt, updatedAt, fileSize, mimeType, *tags',
-  tags: '&id, name, color, count, createdAt',
-  annotationTags: '++id, annotationId, tagId, [annotationId+tagId]'
-}).upgrade(tx => {
-  // Migration logic from version 1 to 2 can be added here
-  console.log('Migrating database from version 1 to 2')
 })
 
 class DexieStorageService {
@@ -119,7 +109,7 @@ class DexieStorageService {
     try {
       await db.transaction('rw', db.annotations, db.tags, async () => {
         await db.annotations.add(fullAnnotation)
-        
+
         // Update tag counts
         await this.updateTagCounts(annotation.tags || [])
       })
@@ -573,10 +563,10 @@ class DexieStorageService {
         // Remove tag from all annotations
         const tag = await db.tags.get(id)
         if (tag) {
-          const annotations = await db.annotations.filter(annotation => 
+          const annotations = await db.annotations.filter(annotation =>
             annotation.tags && annotation.tags.includes(tag.name)
           ).toArray()
-          
+
           for (const annotation of annotations) {
             const updatedTags = annotation.tags.filter(t => t !== tag.name)
             await db.annotations.update(annotation.id, { tags: updatedTags })

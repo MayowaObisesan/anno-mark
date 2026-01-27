@@ -13,7 +13,8 @@ const SETTINGS_STORE = 'settings'
 // Storage interfaces
 export interface StoredAnnotation {
   id: string                    // Primary key
-  dataUrl: string               // Base64 image data
+  dataUrl: string               // Base64 image data (local)
+  thumbnailUrl: string          // Local thumbnail (mobile-first)
   width: number
   height: number
   timestamp: number
@@ -25,6 +26,11 @@ export interface StoredAnnotation {
   updatedAt: Date
   fileSize: number              // Size in bytes
   mimeType: string              // Usually "image/png"
+  // ImageKit metadata
+  imageKitFileId?: string       // Cloud file ID
+  imageKitUrl?: string          // Cloud URL
+  imageKitThumbnailUrl?: string // Cloud thumbnail URL
+  isUploaded?: boolean          // Whether uploaded to cloud
 }
 
 export interface Tag {
@@ -154,7 +160,7 @@ class IndexedDBStorageService {
     if ('storage' in navigator && 'estimate' in navigator.storage) {
       const estimate = await navigator.storage.estimate()
       const annotationCount = await this.getAnnotationCount()
-      
+
       return {
         quota: estimate.quota || 0,
         usage: estimate.usage || 0,
@@ -178,10 +184,10 @@ class IndexedDBStorageService {
    */
   async saveAnnotation(annotation: Omit<StoredAnnotation, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
     const db = await this.ensureInitialized()
-    
+
     const id = `annotation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     const now = new Date()
-    
+
     const fullAnnotation: StoredAnnotation = {
       ...annotation,
       id,
@@ -218,7 +224,7 @@ class IndexedDBStorageService {
    */
   async getAnnotation(id: string): Promise<StoredAnnotation | null> {
     const db = await this.ensureInitialized()
-    
+
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([ANNOTATIONS_STORE], 'readonly')
       const store = transaction.objectStore(ANNOTATIONS_STORE)
@@ -240,15 +246,15 @@ class IndexedDBStorageService {
    */
   async getAllAnnotations(options: QueryOptions = {}): Promise<StoredAnnotation[]> {
     const db = await this.ensureInitialized()
-    
+
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([ANNOTATIONS_STORE], 'readonly')
       const store = transaction.objectStore(ANNOTATIONS_STORE)
-      
+
       let request: IDBRequest
       const sortBy = options.sortBy || 'createdAt'
       const sortOrder = options.sortOrder || 'desc'
-      
+
       if (sortBy === 'createdAt' || sortBy === 'updatedAt' || sortBy === 'timestamp') {
         request = store.index(sortBy).openCursor(null, sortOrder)
       } else {
@@ -261,16 +267,16 @@ class IndexedDBStorageService {
 
       request.onsuccess = (event) => {
         const cursor = (event.target as IDBRequest).result
-        
+
         if (cursor) {
           const annotation = cursor.value as StoredAnnotation
-          
+
           // Apply filters
           if (this.matchesFilters(annotation, options)) {
             if (skipped >= (options.offset || 0)) {
               annotations.push(annotation)
               count++
-              
+
               if (options.limit && count >= options.limit) {
                 resolve(annotations)
                 return
@@ -279,7 +285,7 @@ class IndexedDBStorageService {
               skipped++
             }
           }
-          
+
           cursor.continue()
         } else {
           resolve(annotations)
@@ -298,7 +304,7 @@ class IndexedDBStorageService {
    */
   async updateAnnotation(id: string, updates: Partial<StoredAnnotation>): Promise<void> {
     const db = await this.ensureInitialized()
-    
+
     const existing = await this.getAnnotation(id)
     if (!existing) {
       throw new Error(`Annotation with id ${id} not found`)
@@ -338,9 +344,9 @@ class IndexedDBStorageService {
    */
   async deleteAnnotation(id: string): Promise<void> {
     const db = await this.ensureInitialized()
-    
+
     const annotation = await this.getAnnotation(id)
-    
+
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([ANNOTATIONS_STORE, TAGS_STORE], 'readwrite')
       const annotationsStore = transaction.objectStore(ANNOTATIONS_STORE)
@@ -368,17 +374,17 @@ class IndexedDBStorageService {
    */
   async deleteAnnotations(ids: string[]): Promise<void> {
     const db = await this.ensureInitialized()
-    
+
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([ANNOTATIONS_STORE, TAGS_STORE], 'readwrite')
       const annotationsStore = transaction.objectStore(ANNOTATIONS_STORE)
-      
+
       let completed = 0
       let errors = 0
 
       ids.forEach(id => {
         const request = annotationsStore.delete(id)
-        
+
         request.onsuccess = () => {
           completed++
           if (completed + errors === ids.length) {
@@ -389,7 +395,7 @@ class IndexedDBStorageService {
             }
           }
         }
-        
+
         request.onerror = () => {
           errors++
           console.error(`Failed to delete annotation ${id}:`, request.error)
@@ -411,7 +417,7 @@ class IndexedDBStorageService {
    */
   async searchAnnotations(query: SearchQuery): Promise<StoredAnnotation[]> {
     const allAnnotations = await this.getAllAnnotations()
-    
+
     return allAnnotations.filter(annotation => {
       // Text search
       if (query.text) {
@@ -419,7 +425,7 @@ class IndexedDBStorageService {
         const titleMatch = annotation.title.toLowerCase().includes(searchText)
         const descMatch = annotation.description?.toLowerCase().includes(searchText)
         const tagMatch = annotation.tags.some(tag => tag.toLowerCase().includes(searchText))
-        
+
         if (!titleMatch && !descMatch && !tagMatch) {
           return false
         }
@@ -476,7 +482,7 @@ class IndexedDBStorageService {
    */
   async getAnnotationCount(): Promise<number> {
     const db = await this.ensureInitialized()
-    
+
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([ANNOTATIONS_STORE], 'readonly')
       const store = transaction.objectStore(ANNOTATIONS_STORE)
@@ -498,24 +504,24 @@ class IndexedDBStorageService {
    */
   async clear(): Promise<void> {
     const db = await this.ensureInitialized()
-    
+
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([ANNOTATIONS_STORE, TAGS_STORE, SETTINGS_STORE], 'readwrite')
-      
+
       let completed = 0
       const stores = [ANNOTATIONS_STORE, TAGS_STORE, SETTINGS_STORE]
 
       stores.forEach(storeName => {
         const store = transaction.objectStore(storeName)
         const request = store.clear()
-        
+
         request.onsuccess = () => {
           completed++
           if (completed === stores.length) {
             resolve()
           }
         }
-        
+
         request.onerror = () => {
           console.error(`Failed to clear store ${storeName}:`, request.error)
           reject(new Error(`Failed to clear store ${storeName}: ${request.error?.message}`))
@@ -554,7 +560,7 @@ class IndexedDBStorageService {
     // This is a simplified implementation
     // In a full implementation, you'd want to recalculate all tag counts
     const request = tagsStore.getAll()
-    
+
     request.onsuccess = () => {
       const tags = request.result as Tag[]
       // Update logic would go here
@@ -572,7 +578,7 @@ class IndexedDBStorageService {
   // Tag management methods (simplified for now)
   async getAllTags(): Promise<Tag[]> {
     const db = await this.ensureInitialized()
-    
+
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([TAGS_STORE], 'readonly')
       const store = transaction.objectStore(TAGS_STORE)
