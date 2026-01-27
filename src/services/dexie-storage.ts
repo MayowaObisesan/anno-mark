@@ -24,7 +24,7 @@ const db = new Dexie('AnnoMarkDB') as Dexie & {
 
 // Database versioning with migration support
 db.version(1).stores({
-  annotations: '&id, dataUrl, width, height, timestamp, url, title, createdAt, updatedAt, fileSize, mimeType, *tags',
+  annotations: '&id, dataUrl, thumbnailUrl, width, height, timestamp, url, title, createdAt, updatedAt, fileSize, mimeType, *tags, imageKitFileId, imageKitUrl, imageKitThumbnailUrl, isUploaded',
   tags: '&id, name, color, count, createdAt',
   annotationTags: '++id, annotationId, tagId, [annotationId+tagId]'
 })

@@ -273,7 +273,7 @@ const AnnotationGallery: React.FC<AnnotationGalleryProps> = ({
                 <div style={{
                   width: '100%',
                   height: '280px',
-                  backgroundImage: `url(${annotation.dataUrl})`,
+                  backgroundImage: `url(${annotation.thumbnailUrl || annotation.dataUrl})`,
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                   borderRadius: '8px 8px 0 0',
