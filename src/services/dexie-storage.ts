@@ -7,6 +7,11 @@ import { Dexie, type Table } from "dexie"
 
 import type { QueryOptions, SearchQuery, StorageInfo, StoredAnnotation, Tag } from './indexeddb-storage';
 
+// Extended interface for Convex integration
+export interface StoredAnnotationWithConvex extends StoredAnnotation {
+  convexId?: string; // Reference to Convex annotation ID
+}
+
 // Extended interfaces for Dexie relationships
 export interface AnnotationTag {
   id?: number
@@ -17,14 +22,14 @@ export interface AnnotationTag {
 
 // Database setup with proper typing
 const db = new Dexie('AnnoMarkDB') as Dexie & {
-  annotations: Table<StoredAnnotation, string>
+  annotations: Table<StoredAnnotationWithConvex, string>
   tags: Table<Tag, string>
   annotationTags: Table<AnnotationTag, number>
 }
 
 // Database versioning with migration support
 db.version(1).stores({
-  annotations: '&id, dataUrl, thumbnailUrl, width, height, timestamp, url, title, createdAt, updatedAt, fileSize, mimeType, *tags, imageKitFileId, imageKitUrl, imageKitThumbnailUrl, isUploaded',
+  annotations: '&id, dataUrl, thumbnailUrl, width, height, timestamp, url, title, createdAt, updatedAt, fileSize, mimeType, *tags, imageKitFileId, imageKitUrl, imageKitThumbnailUrl, isUploaded, convexId',
   tags: '&id, name, color, count, createdAt',
   annotationTags: '++id, annotationId, tagId, [annotationId+tagId]'
 })

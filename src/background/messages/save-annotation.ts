@@ -3,6 +3,9 @@ import { storageService } from "~services/storage"
 import { dexieStorageService } from "~services/dexie-storage"
 import { imageKitService } from "~services/imagekit-service"
 import { generateThumbnail } from "~utils/thumbnail-generator"
+import { isUserAuthenticated, getCurrentConvexUserId } from "~services/convex-auth"
+import { convexStorageService } from "~services/convex-storage"
+import type { StoredAnnotationWithConvex } from "~services/dexie-storage"
 
 // Helper function to convert data URL to Blob (direct decoding approach)
 function dataUrlToBlob(dataUrl: string): Blob {
@@ -63,8 +66,39 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
       // Continue without cloud storage if upload fails
     }
 
-    // Save the annotation to Dexie
-    const annotationId = await dexieStorageService.saveAnnotation({
+    // Check if user is authenticated and save to Convex
+    let convexId: string | null = null
+    if (await isUserAuthenticated() && imageKitResult?.url) {
+      try {
+        const userId = await getCurrentConvexUserId()
+        if (userId) {
+          convexId = await convexStorageService.saveAnnotation(userId, {
+            dataUrl: imageKitResult.url, // Use ImageKit URL only (requirement)
+            thumbnailUrl: imageKitResult.thumbnailUrl || thumbnailUrl,
+            fileSize: imageKitResult?.fileSize || blob.size,
+            width: width || 0,
+            height: height || 0,
+            timestamp: timestamp || Date.now(),
+            url: url || '',
+            title: title || `Annotation ${new Date().toLocaleString()}`,
+            tags: [], // Default empty tags for now
+            description: '',
+            mimeType: 'image/png',
+            imageKitFileId: imageKitResult?.fileId,
+            imageKitUrl: imageKitResult?.url,
+            imageKitThumbnailUrl: imageKitResult?.thumbnailUrl,
+            isUploaded: !!imageKitResult
+          })
+          console.log("[Save annotation] Convex save successful:", convexId)
+        }
+      } catch (error) {
+        console.error("[Save annotation] Failed to save to Convex:", error)
+        // Continue with local storage even if Convex fails
+      }
+    }
+
+    // Save the annotation to Dexie with Convex reference
+    const annotationData: Omit<StoredAnnotationWithConvex, 'id' | 'createdAt' | 'updatedAt'> = {
       dataUrl: imageKitResult?.url || dataUrl,
       thumbnailUrl: imageKitResult?.thumbnailUrl || thumbnailUrl,
       fileSize: imageKitResult?.fileSize || blob.size,
@@ -79,8 +113,11 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
       imageKitFileId: imageKitResult?.fileId,
       imageKitUrl: imageKitResult?.url,
       imageKitThumbnailUrl: imageKitResult?.thumbnailUrl,
-      isUploaded: !!imageKitResult
-    })
+      isUploaded: !!imageKitResult,
+      convexId: convexId || undefined // Add Convex reference
+    }
+
+    const annotationId = await dexieStorageService.saveAnnotation(annotationData)
 
     console.log("[Save annotation] handler", {
       annotationId,
@@ -102,8 +139,10 @@ const handler: PlasmoMessaging.MessageHandler = async (req, res) => {
       type: 'ANNOTATION_SAVED',
       data: {
         id: annotationId,
+        convexId: convexId,
         message: 'Annotation saved successfully',
-        imageKitUploaded: !!imageKitResult
+        imageKitUploaded: !!imageKitResult,
+        convexSaved: !!convexId
       }
     })
   } catch (error) {
