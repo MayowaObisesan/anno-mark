@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Annotation Editor Standalone Example</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #4f46e5;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .demo-section {
+            margin-bottom: 30px;
+        }
+
+        .demo-section h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #1f2937;
+        }
+
+        .image-container {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .image-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .controls button {
+            padding: 10px 20px;
+            background: #4f46e5;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        .controls button:hover {
+            background: #4338ca;
+        }
+
+        .controls button:disabled {
+            background: #d1d5db;
+            cursor: not-allowed;
+        }
+
+        .result-container {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f9fafb;
+            border-radius: 4px;
+        }
+
+        .result-container h3 {
+            margin-top: 0;
+            font-size: 16px;
+            color: #1f2937;
+        }
+
+        .result-container img {
+            max-width: 100%;
+            height: auto;
+            margin-top: 10px;
+            border-radius: 4px;
+        }
+
+        .editor-container {
+            margin-top: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .info-panel {
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .info-panel h3 {
+            margin-top: 0;
+            color: #1e40af;
+        }
+
+        .info-panel ul {
+            margin: 10px 0 0;
+            padding-left: 20px;
+            color: #374151;
+        }
+
+        .info-panel li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Annotation Editor Component - Standalone Example</h1>
+        </div>
+
+        <div class="content">
+            <div class="info-panel">
+                <h3>About this Example</h3>
+                <p>This demonstrates how the Annotation Editor component can be used in a standalone HTML file without any framework dependencies.</p>
+                <p><strong>How to use:</strong></p>
+                <ul>
+                    <li>Click "Start Annotating" to begin</li>
+                    <li>Use the toolbar to select tools and colors</li>
+                    <li>Draw directly on the canvas</li>
+                    <li>Click "Export" to save your annotated image</li>
+                </ul>
+            </div>
+
+            <div class="demo-section">
+                <h2>Original Image</h2>
+                <div class="image-container">
+                    <img id="originalImage" src="https://picsum.photos/seed/annotation-demo/800/600" alt="Sample image for annotation">
+                </div>
+
+                <div class="controls">
+                    <button id="startButton" onclick="startAnnotation()">Start Annotating</button>
+                    <button id="exportButton" onclick="exportAnnotation()" disabled>Export Annotated Image</button>
+                </div>
+            </div>
+
+            <div class="demo-section">
+                <h2>Annotation Editor</h2>
+                <div id="editorContainer" class="editor-container"></div>
+            </div>
+
+            <div class="demo-section">
+                <h2>Annotated Result</h2>
+                <div id="resultContainer" class="result-container">
+                    <h3>Your annotated image will appear here:</h3>
+                    <div id="resultImageContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simple example showing how the annotation component could be used
+        // This is a simplified version for demonstration purposes
+
+        let isEditing = false;
+        let annotatedImageData = null;
+
+        function startAnnotation() {
+            isEditing = true;
+            document.getElementById('startButton').disabled = true;
+            document.getElementById('exportButton').disabled = false;
+
+            // In a real implementation, this would initialize the React component
+            // For this demo, we'll show a simulated editor
+            showSimulatedEditor();
+        }
+
+        function showSimulatedEditor() {
+            const editorContainer = document.getElementById('editorContainer');
+            editorContainer.innerHTML = `
+                <div style="padding: 20px; text-align: center;">
+                    <div style="font-size: 24px; margin-bottom: 10px;">✏️ Annotation Editor</div>
+                    <div style="color: #6b7280; margin-bottom: 20px;">
+                        (This is a simulated editor. In a real React application, the actual component would be rendered here.)
+                    </div>
+                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        <div style="padding: 8px 16px; background: #f3f4f6; border-radius: 4px; font-size: 14px;">
+                            📐 Arrow Tool
+                        </div>
+                        <div style="padding: 8px 16px; background: #f3f4f6; border-radius: 4px; font-size: 14px;">
+                            🟦 Rectangle
+                        </div>
+                        <div style="padding: 8px 16px; background: #f3f4f6; border-radius: 4px; font-size: 14px;">
+                            ⚪ Ellipse
+                        </div>
+                        <div style="padding: 8px 16px; background: #f3f4f6; border-radius: 4px; font-size: 14px;">
+                            ✏️ Freehand
+                        </div>
+                        <div style="padding: 8px 16px; background: #f3f4f6; border-radius: 4px; font-size: 14px;">
+                            📝 Text
+                        </div>
+                        <div style="padding: 8px 16px; background: #f3f4f6; border-radius: 4px; font-size: 14px;">
+                            🔍 Blur
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function exportAnnotation() {
+            // Simulate exporting the annotated image
+            const resultContainer = document.getElementById('resultImageContainer');
+            resultContainer.innerHTML = `
+                <img src="https://picsum.photos/seed/annotation-result/800/600" alt="Annotated image">
+            `;
+
+            // Reset controls
+            document.getElementById('startButton').disabled = false;
+            document.getElementById('exportButton').disabled = true;
+            document.getElementById('editorContainer').innerHTML = '';
+            isEditing = false;
+        }
+
+        // Simulate image loading
+        document.addEventListener('DOMContentLoaded', () => {
+            const img = document.getElementById('originalImage');
+            img.onload = () => {
+                console.log('Image loaded successfully');
+            };
+        });
+    </script>
+</body>

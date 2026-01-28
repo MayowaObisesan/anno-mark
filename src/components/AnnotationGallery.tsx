@@ -22,9 +22,10 @@ import {
 } from 'lucide-react'
 import { sendToBackground } from '@plasmohq/messaging'
 import type { StoredAnnotation } from '~services/indexeddb-storage'
+import type { StoredAnnotationWithConvex } from '~services/dexie-storage'
 
 interface AnnotationGalleryProps {
-  onAnnotationSelect?: (annotation: StoredAnnotation) => void
+  onAnnotationSelect?: (annotation: StoredAnnotation | StoredAnnotationWithConvex) => void
   onClose?: () => void
 }
 
@@ -38,6 +39,11 @@ const AnnotationGallery: React.FC<AnnotationGalleryProps> = ({
   const [selectedAnnotation, setSelectedAnnotation] = useState<StoredAnnotation | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [storageInfo, setStorageInfo] = useState<any>(null)
+
+  // Helper function to check if annotation is from Convex
+  const isConvexAnnotation = (annotation: StoredAnnotation | StoredAnnotationWithConvex): boolean => {
+    return 'convexId' in annotation || annotation.id.startsWith('convex_')
+  }
 
   // Helper function to normalize dates in annotations
   const normalizeAnnotationDates = (annotations: any[]): StoredAnnotation[] => {
@@ -71,7 +77,11 @@ const AnnotationGallery: React.FC<AnnotationGalleryProps> = ({
         // Normalize dates before setting state
         const normalizedAnnotations = normalizeAnnotationDates(response.data.annotations)
         setAnnotations(normalizedAnnotations)
-        setStorageInfo(response.data.storageInfo)
+        setStorageInfo({
+          ...response.data.storageInfo,
+          convexCount: response.data.convexCount || 0,
+          localCount: response.data.localCount || 0
+        })
       } else if (response?.type === 'RETRIEVAL_ERROR') {
         setError(response.data.error)
       } else {
@@ -233,6 +243,14 @@ const AnnotationGallery: React.FC<AnnotationGalleryProps> = ({
         {storageInfo && (
           <Text size="1" color="gray" mt="8px">
             {storageInfo.annotationCount} annotations • {formatFileSize(storageInfo.usage)} used
+            {storageInfo.convexCount !== undefined && (
+              <>
+                {" • "}
+                <Text size="1" color="blue" style={{ fontWeight: 'bold' }}>
+                  {storageInfo.convexCount} cloud synced
+                </Text>
+              </>
+            )}
           </Text>
         )}
       </div>
@@ -277,8 +295,34 @@ const AnnotationGallery: React.FC<AnnotationGalleryProps> = ({
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                   borderRadius: '8px 8px 0 0',
-                  marginBottom: '12px'
+                  marginBottom: '12px',
+                  position: 'relative'
                 }} />
+                
+                {/* Cloud Indicator */}
+                {isConvexAnnotation(annotation) && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '8px',
+                      right: '8px',
+                      backgroundColor: '#3b82f6',
+                      color: 'white',
+                      borderRadius: '50%',
+                      width: '20px',
+                      height: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    }}
+                    title="Stored in Convex Cloud"
+                  >
+                    ☁
+                  </div>
+                )}
 
                 <div style={{ padding: '0 8px 8px' }}>
                   {/* Title */}
